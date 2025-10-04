@@ -10,6 +10,8 @@ param modelDeploymentName string
 param aiServicesKeySecretUri string
 param acsConnectionStringSecretUri string
 param logAnalyticsWorkspaceName string
+@description('The name of the container image')
+param imageName string = ''
 
 // Helper to sanitize environmentName for valid container app name
 var sanitizedEnvName = toLower(replace(replace(replace(replace(environmentName, ' ', '-'), '--', '-'), '[^a-zA-Z0-9-]', ''), '_', '-'))
@@ -82,7 +84,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
       containers: [
         {
           name: 'main'
-          image: fetchLatestImage.outputs.?containers[?0].?image ??'${containerRegistryName}.azurecr.io/voice-live-agent/app-voiceagent:latest'
+          image: !empty(imageName) ? imageName : 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
           env: [
             {
               name: 'AZURE_VOICE_LIVE_API_KEY'
