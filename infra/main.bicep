@@ -13,16 +13,20 @@ param environmentName string
 ])
 param location string
 
-var uniqueSuffix = substring(uniqueString(subscription().id, environmentName), 0, 5)
-
+var abbrs = loadJsonContent('./abbreviations.json')
+param useApplicationInsights bool = true
+param useContainerRegistry bool = true
 param appExists bool
+@description('The OpenAI model name')
+param modelName string = ' gpt-4o-mini'
+@description('Id of the user or app to assign application roles. If ommited will be generated from the user assigned identity.')
+param principalId string = ''
 
+var uniqueSuffix = substring(uniqueString(subscription().id, environmentName), 0, 5)
 var tags = {'azd-env-name': environmentName }
 var rgName = 'rg-${environmentName}-${uniqueSuffix}'
-// TODO: Allow user to select in runtime
-var modelName = 'gpt-4o-mini'
 
-resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
+resource rg 'Microsoft.Resources/resourceGroups@2024-11-01' = {
   name: rgName
   location: location
   tags: tags
@@ -51,6 +55,7 @@ module monitoring 'modules/monitoring/monitor.bicep' = {
     tags: tags
   }
 }
+
 module registry 'modules/containerregistry.bicep' = {
   name: 'registry'
   scope: rg
@@ -130,6 +135,7 @@ module containerapp 'modules/containerapp.bicep' = {
     aiServicesKeySecretUri: keyvault.outputs.aiServicesKeySecretUri
     acsConnectionStringSecretUri: keyvault.outputs.acsConnectionStringUri
     logAnalyticsWorkspaceName: logAnalyticsName
+    imageName: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
   }
   dependsOn: [keyvault, RoleAssignments]
 }
@@ -143,5 +149,6 @@ output AZURE_USER_ASSIGNED_IDENTITY_ID string = appIdentity.outputs.identityId
 output AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID string = appIdentity.outputs.clientId
 
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = registry.outputs.loginServer
-
 output SERVICE_API_ENDPOINTS array = ['${containerapp.outputs.containerAppFqdn}/acs/incomingcall']
+output AZURE_VOICE_LIVE_ENDPOINT string = aiServices.outputs.aiServicesEndpoint
+output AZURE_VOICE_LIVE_MODEL string = modelName

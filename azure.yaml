@@ -1,6 +1,8 @@
 name: voice-live-agent
 metadata:
-  template: voice-live-agent@0.0.1
+  template: voice-live-agent@0.0.2
+requiredVersions:
+  azd: ">=1.14.0"
 services:
     app:
         project: server
@@ -9,3 +11,10 @@ services:
         docker:
           path: Dockerfile
           remoteBuild: true
+pipeline:
+  variables:
+    - AZURE_LOCATION
+    - AZURE_RESOURCE_GROUP
+    - AZURE_CONTAINER_REGISTRY_ENDPOINT
+    - SERVICE_API_ENDPOINTS
+    - AZURE_VOICE_LIVE_ENDPOINT

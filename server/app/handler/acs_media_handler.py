@@ -74,6 +74,7 @@ class ACSMediaHandler:
                 "https://cognitiveservices.azure.com/.default"
             )
             headers["Authorization"] = f"Bearer {token.token}"
+            logger.info("[VoiceLiveACSHandler] Connected to Voice Live API by managed identity")
         else:
             headers["api-key"] = self.api_key
 

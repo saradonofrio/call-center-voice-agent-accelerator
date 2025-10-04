@@ -1,10 +1,8 @@
-name: Deploy to Azure
+name: Clean up Azure resources
 
 # Run when commits are pushed to main
 on:
-  push:
-      branches:
-          - main
+  workflow_dispatch:
 
 # Set up permissions for deploying with secretless Azure federated credentials
 # https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure?tabs=azure-portal%2Clinux#set-up-azure-login-with-openid-connect-authentication
@@ -13,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  build_and_deploy:
+  cleanup:
     runs-on: ubuntu-latest
     env:
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
@@ -38,9 +36,6 @@ jobs:
             --federated-credential-provider "github" `
             --tenant-id "$Env:AZURE_TENANT_ID"
         shell: pwsh
-
-      - name: Provision Infrastructure
-        run: azd provision --no-prompt
           
-      - name: Deploy Application
-        run: azd deploy --no-prompt
+      - name: Clean up Azure resources
+        run: azd down --force --purge --no-prompt
