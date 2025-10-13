@@ -1,4 +1,6 @@
 # Call Center Voice Agent Accelerator with Azure Voice Live API
+| [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Azure-Samples/call-center-voice-agent-accelerator) | [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/Azure-Samples/call-center-voice-agent-accelerator)
+|---|---|
 
 Welcome to the *Call Center Real-time Voice Agent* solution accelerator. It's a lightweight template to create speech-to-speech voice agents that deliver personalized self-service experiences and natural-sounding voices, seamlessly integrated with telephony systems. This solution accelerator uses  **Azure Voice Live API** and **Azure Communication Services** — Start locally, deploy later to Azure Web App. No PSTN number needed.
 
@@ -35,6 +37,9 @@ The solution includes:
 
 ## Quick Deploy
 
+| [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Azure-Samples/call-center-voice-agent-accelerator) | [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/Azure-Samples/call-center-voice-agent-accelerator)
+|---|---|
+
 ### Prerequisites and Costs
 To deploy this solution accelerator, ensure you have access to an [Azure subscription](https://azure.microsoft.com/free/) with the necessary permissions to create **resource groups and resources**. Follow the steps in [Azure Account Set Up](./docs/AzureAccountSetUp.md).
 
@@ -62,25 +67,96 @@ Here are some developers tools to set up as prerequisites:
 
 <br/>
 
-### Deployment and setup
-1. Sign up for a [free Azure account](https://azure.microsoft.com/free/) and create an Azure Subscription.
+### Deployment Options
+Pick from the options below to see step-by-step instructions for: GitHub Codespaces, VS Code Dev Containers, Local Environments, and Bicep deployments.
 
-2. Login to Azure:
+<details>
+  <summary><b>Deploy in GitHub Codespaces</b></summary>
+  
+### GitHub Codespaces
+
+You can run this solution using GitHub Codespaces. The button will open a web-based VS Code instance in your browser:
+
+1. Open the solution accelerator (this may take several minutes):
+
+    [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Azure-Samples/call-center-voice-agent-accelerator)
+
+2. Accept the default values on the create Codespaces page.
+3. Open a terminal window if it is not already open.
+4. Follow the instructions in the helper script to populate deployment variables.
+5. Continue with the [deploying steps](#deploying).
+
+</details>
+
+<details>
+  <summary><b>Deploy in VS Code Dev Containers </b></summary>
+
+ ### VS Code Dev Containers
+
+You can run this solution in VS Code Dev Containers, which will open the project in your local VS Code using the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers):
+
+1. Start Docker Desktop (install it, if not already installed)
+2. Open the project:
+
+    [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/Azure-Samples/call-center-voice-agent-accelerator)
+
+
+3. In the VS Code window that opens, once the project files show up (this may take several minutes), open a terminal window.
+4. Follow the instructions in the helper script to populate deployment variables.
+5. Continue with the [deploying steps](#deploying).
+
+</details>
+
+<details>
+  <summary><b>Deploy in your local environment</b></summary>
+
+ ### Local environment
+
+If you're not using one of the above options for opening the project, then you'll need to:
+
+1. Make sure the following tools are installed:
+
+    * `bash`
+    * [Azure Developer CLI (azd)](https://aka.ms/install-azd)
+
+2. Download the project code:
+
+    ```shell
+    azd init -t Azure-Samples/call-center-voice-agent-accelerator/
+    ```
+    **Note:** the above command should be run in a new folder of your choosing. You do not need to run `git clone` to download the project source code. `azd init` handles this for you.
+
+3. Open the project folder in your terminal or editor.
+4. Run the helper script to populate deployment variables: 
+```
+az login
+```
+5. Continue with the [deploying steps](#deploying).
+
+</details>
+ 
+### Deploying
+
+Once you've opened the project in [Codespaces](#github-codespaces) or in [Dev Containers](#vs-code-dev-containers) or [locally](#local-environment), you can deploy it to Azure following the following steps. 
+
+To change the `azd` parameters from the default values, follow the steps [here](./docs/customizing_azd_parameters.md). 
+
+1. Login to Azure:
 
     ```shell
     azd auth login
     ```
 
-3. Provision and deploy all the resources:
+2. Provision and deploy all the resources:
 
     ```shell
     azd up
     ```
     It will prompt you to provide an `azd` environment name (like "flask-app"), select a subscription from your Azure account, and select a location (like "eastus"). Then it will provision the resources in your account and deploy the latest code. If you get an error with deployment, changing the location can help, as there may be availability constraints for some of the resources.
 
-4. When `azd` has finished deploying, you'll see an endpoint URI in the command output. Visit that URI, and you should see the API output! 🎉
+3. When `azd` has finished deploying, you'll see an endpoint URI in the command output. Visit that URI, and you should see the API output! 🎉
 
-5. When you've made any changes to the app code, you can just run:
+4. When you've made any changes to the app code, you can just run:
 
     ```shell
     azd deploy
