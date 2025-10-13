@@ -130,7 +130,6 @@ If you're not using one of the above options for opening the project, then you'l
 4. Run the helper script to populate deployment variables: 
 ```
 az login
-source infra/setup_azd_parameters.sh
 ```
 5. Continue with the [deploying steps](#deploying).
 
