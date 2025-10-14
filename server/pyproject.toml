@@ -10,7 +10,7 @@ dependencies = [
     "quart-cors",
     "azure-core",
     "azure-communication-identity",
-    "aiohttp",
+    "aiohttp>=3.12.14",
     "azure-eventgrid",
     "azure-identity",
     "azure-communication-callautomation",

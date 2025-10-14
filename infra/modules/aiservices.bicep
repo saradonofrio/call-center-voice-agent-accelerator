@@ -12,7 +12,7 @@ var aiServicesName string = 'aiServices-${environmentName}-${uniqueSuffix}'
 ])
 param sku string = 'S0'
 
-resource aiServices 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
+resource aiServices 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
   name: aiServicesName
   location: location
   identity: {

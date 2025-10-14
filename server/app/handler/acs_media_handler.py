@@ -61,7 +61,9 @@ class ACSMediaHandler:
 
     async def connect(self):
         """Connects to Azure Voice Live API via WebSocket."""
-        url = f"{self.endpoint}/voice-live/realtime?api-version=2025-05-01-preview&model={self.model}"
+        endpoint = self.endpoint.rstrip("/")
+        model = self.model.strip()
+        url = f"{endpoint}/voice-live/realtime?api-version=2025-05-01-preview&model={model}"
         url = url.replace("https://", "wss://")
 
         headers = {"x-ms-client-request-id": self._generate_guid()}
