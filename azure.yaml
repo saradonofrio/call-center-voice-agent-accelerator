@@ -5,13 +5,12 @@ requiredVersions:
   azd: ">=1.14.0"
 services:
     app:
-      project: ./server
-      host: containerapp
-      language: python
-      docker:
-        path: ./server/Dockerfile
-        context: ./server
-        remoteBuild: true
+        project: server
+        host: containerapp
+        language: python
+        docker:
+          path: Dockerfile
+          remoteBuild: true
 pipeline:
   variables:
     - AZURE_LOCATION
