@@ -8,17 +8,19 @@ The Azure voice live API is a solution enabling low-latency, high-quality speech
 
 The Azure Communication Services Calls Automation APIs provide telephony integration and real-time event triggers to perform actions based on custom business logic specific to their domain. Within the call automation APIs developers can use simple AI powered APIs, which can be used to play personalized greeting messages, recognize conversational voice inputs to gather information on contextual questions to drive a more self-service model with customers, use sentiment analysis to improve customer service overall. Learn more about [Azure Communication Services (Call Automation)](https://learn.microsoft.com/azure/communication-services/concepts/call-automation/call-automation).
 
+## Important Security Notice
+
+This template, the application code and configuration it contains, has been built to showcase Microsoft Azure specific services and tools. We strongly advise our customers not to make this code part of their production environments without implementing or enabling additional security features. Learn more from [Security for Azure AI Voice Live API](https://learn.microsoft.com/azure/ai-foundry/responsible-ai/speech-service/voice-live/data-privacy-security).
 
 <br/>
 
 <div align="center">
   
-[**SOLUTION OVERVIEW**](#solution-overview) \| [**QUICK DEPLOY**](#quick-deploy) \| [**TESTING**](#testing-the-agent) \| [**RESOURCE CLEAN-UP**](#resource-clean-up)
+[**Features**](#features) \| [**Getting Started**](#getting-started) \| [**Testing the Agent**](#testing-the-agent) \| [**Guidance**](#guidance) \| [**Resources**](#resources)
 
 </div>
-<br/>
 
-## Solution Overview
+## Features
 This sample demonstrates how to build a real-time voice agent using the [Azure Speech Voice Live API](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live).
 
 The solution includes:
@@ -35,7 +37,8 @@ The solution includes:
 
 <br/>
 
-## Quick Deploy
+## Getting Started
+
 
 | [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Azure-Samples/call-center-voice-agent-accelerator) | [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/Azure-Samples/call-center-voice-agent-accelerator)
 |---|---|
@@ -65,7 +68,6 @@ Here are some developers tools to set up as prerequisites:
 - [UV](https://docs.astral.sh/uv/getting-started/installation/): `uv`
 - Optionally [Docker](https://www.docker.com/get-started/): `docker`
 
-<br/>
 
 ### Deployment Options
 Pick from the options below to see step-by-step instructions for: GitHub Codespaces, VS Code Dev Containers, Local Environments, and Bicep deployments.
@@ -170,7 +172,7 @@ To change the `azd` parameters from the default values, follow the steps [here](
 >- Region: swedencentral is strongly recommended due to AI Foundry availability.
 >- Post-Deployment: You can also setup ACS Event Grid subscription and PSTN to use the ACS client.
 
-<br/>
+
 
 ## Testing the Agent
 
@@ -238,7 +240,13 @@ Please follow the instructions in [the instructions in `service`](./service/READ
 
 <br/>
 
-## Resource Clean-up
+## Guidance
+
+### Responsible AI Transparency FAQ 
+
+Please refer to [Transparency Note](https://learn.microsoft.com/azure/ai-foundry/responsible-ai/speech-service/voice-live/transparency-note) for responsible AI transparency details of the voice live api.
+
+### Resource Clean-up
 
 When you no longer need the resources created in this article, run the following command to power down the app:
 
@@ -250,12 +258,8 @@ If you want to redeploy to a different region, delete the `.azure` directory bef
 
 <br/>
 
-## Contributing
-
-This project welcomes contributions and suggestions. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
-
-<br/>
-
-## License
-
-This project is licensed under the MIT License. See [LICENSE.md](LICENSE.md) for details.
+## Resources
+- [📖 Docs: Voice live overview](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live)
+- [📖 Blog: Upgrade your voice agent with Azure AI Voice Live API](https://techcommunity.microsoft.com/blog/azure-ai-foundry-blog/upgrade-your-voice-agent-with-azure-ai-voice-live-api/4458247)
+- [📖 Docs: Azure Speech](https://learn.microsoft.com/azure/ai-services/speech-service/)
+- [📖 Docs: Azure Communication Services (Call Automation)](https://learn.microsoft.com/azure/communication-services/concepts/call-automation/call-automation)
