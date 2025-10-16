@@ -3,6 +3,13 @@
 ###############################################
 FROM python:3.12-slim-bookworm AS base
 
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    VIRTUAL_ENV=/app/.venv \
+    PATH="/app/.venv/bin:$PATH"
+
+WORKDIR /app
+
 ###############
 # Build stage #
 ###############
@@ -17,8 +24,11 @@ ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
     UV_PROJECT_ENVIRONMENT=/app/.venv
 
-COPY uv.lock pyproject.toml /app/
-WORKDIR /app
+# Create virtual environment explicitly
+RUN python -m venv /app/.venv
+
+# Copy dependency files
+COPY pyproject.toml uv.lock /app/
 
 # Sync the project into a new environment, using the frozen lockfile
 RUN uv sync --frozen --no-dev --no-install-project --no-editable --all-packages
@@ -35,10 +45,13 @@ FROM base
 RUN groupadd -r app
 RUN useradd -r -d /app -g app -N app
 
+# Copy built app from builder stage and set ownership
 COPY --from=builder --chown=app:app /app /app
+
 WORKDIR /app
 
-ENV PYTHONUNBUFFERED=1
+# Switch to non-root user
+USER app
 
 EXPOSE 8000
 ENTRYPOINT ["/app/.venv/bin/python",  "server.py"]
