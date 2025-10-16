@@ -1,6 +1,6 @@
 name: voice-live-agent
 metadata:
-  template: voice-live-agent@0.0.2
+  template: voice-live-agent@0.1.0
 requiredVersions:
   azd: ">=1.14.0"
 services:
