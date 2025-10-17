@@ -10,7 +10,7 @@ Based on .env-sample.txt, create and construct your .env file to allow your loca
 1. Run the local server:
 
     ```shell
-    py server.py
+    uv run server.py
     ```
 
 3. Once the app is running, open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser (or click the printed URL in the terminal).
