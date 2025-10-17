@@ -17,9 +17,9 @@ param sku object = {
 }
 param zoneRedundancy string = 'Disabled'
 
-// Helper to sanitize environmentName for valid container app name
-var sanitizedEnvName = toLower(replace(replace(replace(replace(environmentName, ' ', ''), '--', ''), '[^a-zA-Z0-9-]', ''), '_', ''))
-var containerRegistryName = take('${sanitizedEnvName}${uniqueSuffix}', 32)
+// Removes any character NOT a-z or 0-9
+var sanitizedAcrName = toLower(replace(environmentName, '[^a-z0-9]', ''))
+var containerRegistryName = take('${sanitizedAcrName}${uniqueSuffix}', 32)
 
 // 2022-02-01-preview needed for anonymousPullEnabled
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2022-02-01-preview' = {

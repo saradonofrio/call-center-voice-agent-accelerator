@@ -69,14 +69,14 @@ class ACSMediaHandler:
         headers = {"x-ms-client-request-id": self._generate_guid()}
 
         if self.client_id:
-            credential = ManagedIdentityCredential(
-                managed_identity_client_id=self.client_id
-            )
-            token = await credential.get_token(
-                "https://cognitiveservices.azure.com/.default"
-            )
-            headers["Authorization"] = f"Bearer {token.token}"
-            logger.info("[VoiceLiveACSHandler] Connected to Voice Live API by managed identity")
+        # Use async context manager to auto-close the credential
+            async with ManagedIdentityCredential(client_id=self.client_id) as credential:
+                token = await credential.get_token(
+                    "https://cognitiveservices.azure.com/.default"
+                )
+                print(token.token)
+                headers["Authorization"] = f"Bearer {token.token}"
+                logger.info("[VoiceLiveACSHandler] Connected to Voice Live API by managed identity")
         else:
             headers["api-key"] = self.api_key
 

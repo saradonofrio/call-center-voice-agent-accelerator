@@ -4,10 +4,10 @@ param uniqueSuffix string
 param tags object
 param exists bool
 param identityId string
+param identityClientId string
 param containerRegistryName string
 param aiServicesEndpoint string
 param modelDeploymentName string
-param aiServicesKeySecretUri string
 param acsConnectionStringSecretUri string
 param logAnalyticsWorkspaceName string
 @description('The name of the container image')
@@ -69,11 +69,6 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
       ]
       secrets: [
         {
-          name: 'azure-ai-services-key'
-          keyVaultUrl: aiServicesKeySecretUri
-          identity: identityId
-        }
-        {
           name: 'acs-connection-string'
           keyVaultUrl: acsConnectionStringSecretUri
           identity: identityId
@@ -87,18 +82,13 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
           image: !empty(imageName) ? imageName : 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
           env: [
             {
-              name: 'AZURE_VOICE_LIVE_API_KEY'
-              secretRef: 'azure-ai-services-key'
-            }
-            {
               name: 'AZURE_VOICE_LIVE_ENDPOINT'
               value: aiServicesEndpoint
             }
-            // TODO: Enable after adding custom domain and User Identity auth on ai service
-            // {
-            //   name: 'AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID'
-            //   value: clientId              
-            // }
+            {
+              name: 'AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID'
+              value: identityClientId
+            }
             {
               name: 'VOICE_LIVE_MODEL'
               value: modelDeploymentName

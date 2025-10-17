@@ -101,10 +101,9 @@ module keyvault 'modules/keyvault.bicep' = {
     location: location
     keyVaultName: sanitizedKeyVaultName
     tags: tags
-    aiServicesKey: aiServices.outputs.aiServicesKey
     acsConnectionString: acs.outputs.acsConnectionString
   }
-  dependsOn: [ appIdentity, acs, aiServices ]
+  dependsOn: [ appIdentity, acs ]
 }
 
 // Add role assignments 
@@ -129,10 +128,10 @@ module containerapp 'modules/containerapp.bicep' = {
     tags: tags
     exists: appExists
     identityId: appIdentity.outputs.identityId
+    identityClientId: appIdentity.outputs.clientId
     containerRegistryName: registry.outputs.name
     aiServicesEndpoint: aiServices.outputs.aiServicesEndpoint
     modelDeploymentName: modelName
-    aiServicesKeySecretUri: keyvault.outputs.aiServicesKeySecretUri
     acsConnectionStringSecretUri: keyvault.outputs.acsConnectionStringUri
     logAnalyticsWorkspaceName: logAnalyticsName
     imageName: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
