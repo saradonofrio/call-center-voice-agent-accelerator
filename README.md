@@ -129,11 +129,7 @@ If you're not using one of the above options for opening the project, then you'l
     **Note:** the above command should be run in a new folder of your choosing. You do not need to run `git clone` to download the project source code. `azd init` handles this for you.
 
 3. Open the project folder in your terminal or editor.
-4. Run the helper script to populate deployment variables: 
-```
-az login
-```
-5. Continue with the [deploying steps](#deploying).
+4. Continue with the [deploying steps](#deploying).
 
 </details>
  
