@@ -2,6 +2,7 @@ param environmentName string
 param uniqueSuffix string
 param identityId string
 param tags object
+param disableLocalAuth bool = true
 
 // Voice live api only supported on two regions now 
 var location string = 'swedencentral'
@@ -29,13 +30,12 @@ resource aiServices 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
     networkAcls: {
       defaultAction: 'Allow'
     }
-    disableLocalAuth: false
+    disableLocalAuth: disableLocalAuth
     customSubDomainName: 'domain-${environmentName}-${uniqueSuffix}' 
   }
 }
 
 @secure()
-output aiServicesKey string = aiServices.listKeys().key1
 output aiServicesEndpoint string = aiServices.properties.endpoint
 output aiServicesId string = aiServices.id
 output aiServicesName string = aiServices.name

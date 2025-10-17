@@ -2,8 +2,6 @@ param location string
 param keyVaultName string
 param tags object
 @secure()
-param aiServicesKey string
-@secure()
 param acsConnectionString string
 
 var sanitizedKeyVaultName = take(toLower(replace(replace(replace(replace(keyVaultName, '--', '-'), '_', '-'), '[^a-zA-Z0-9-]', ''), '-$', '')), 24)
@@ -27,14 +25,6 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
 }
 
 
-resource aiServicesKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  parent: keyVault
-  name: 'AZURE-VOICE-LIVE-API-KEY'
-  properties: {
-    value: aiServicesKey
-  }
-}
-
 resource acsConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: keyVault
   name: 'ACS-CONNECTION-STRING'
@@ -45,7 +35,6 @@ resource acsConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01
 
 var keyVaultDnsSuffix = environment().suffixes.keyvaultDns
 
-output aiServicesKeySecretUri string = 'https://${keyVault.name}${keyVaultDnsSuffix}/secrets/${aiServicesKeySecret.name}'
 output acsConnectionStringUri string = 'https://${keyVault.name}${keyVaultDnsSuffix}/secrets/${acsConnectionStringSecret.name}'
 output keyVaultId string = keyVault.id
 output keyVaultName string = keyVault.name

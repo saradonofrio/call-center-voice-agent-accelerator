@@ -12,6 +12,10 @@ The Azure Communication Services Calls Automation APIs provide telephony integra
 
 This template, the application code and configuration it contains, has been built to showcase Microsoft Azure specific services and tools. We strongly advise our customers not to make this code part of their production environments without implementing or enabling additional security features. Learn more from [Security for Azure AI Voice Live API](https://learn.microsoft.com/azure/ai-foundry/responsible-ai/speech-service/voice-live/data-privacy-security).
 
+### Security Considerations
+
+ACS currently does not support Managed Identity. The ACS connection string is stored securely in Key Vault and injected into the container app via its secret URL.
+
 <br/>
 
 <div align="center">
