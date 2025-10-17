@@ -17,9 +17,8 @@ param sku object = {
 }
 param zoneRedundancy string = 'Disabled'
 
-// Removes any character NOT a-z or 0-9
-var sanitizedAcrName = toLower(replace(environmentName, '[^a-z0-9]', ''))
-var containerRegistryName = take('${sanitizedAcrName}${uniqueSuffix}', 32)
+// Hardcode container registry name with unique suffix
+var containerRegistryName = take('cr${uniqueSuffix}', 32)
 
 // 2022-02-01-preview needed for anonymousPullEnabled
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2022-02-01-preview' = {
