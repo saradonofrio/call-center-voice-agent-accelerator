@@ -98,13 +98,16 @@
   </footer>
 
   <script>
-    let mediaStream, source, processor, socket;
-    let audioContext = new AudioContext({ sampleRate: 24000 });
-    let workletNode;
+  let mediaStream, source, processor, micWorkletNode, socket;
+  let audioContext = new AudioContext({ sampleRate: 24000 });
+  let workletNode;
 
     // Load the AudioWorkletProcessor
     async function loadAudioProcessor() {
+      // Load playback worklet and microphone capture worklet
       await audioContext.audioWorklet.addModule('/static/audio-processor.js');
+      // mic worklet is loaded but the node will be created when the microphone stream is available
+      await audioContext.audioWorklet.addModule('/static/mic-processor.js');
       workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
       workletNode.connect(audioContext.destination);
     }
@@ -141,22 +144,34 @@
         }
       });
       source = audioContext.createMediaStreamSource(mediaStream);
-      processor = audioContext.createScriptProcessor(4096, 1, 1);
 
-      processor.onaudioprocess = (event) => {
-        const input = event.inputBuffer.getChannelData(0);
-        const pcm = float32ToInt16(input);
+      // Create an AudioWorkletNode for microphone capture. It has 1 input and 0 outputs.
+      micWorkletNode = new AudioWorkletNode(audioContext, 'mic-processor', {
+        numberOfInputs: 1,
+        numberOfOutputs: 0,
+        channelCount: 1
+      });
+
+      // Receive Float32 chunks from the worklet, convert to Int16 and forward to websocket
+      micWorkletNode.port.onmessage = (e) => {
+        const float32 = e.data && e.data.input;
+        if (!float32) return;
+        const pcm = float32ToInt16(float32);
         if (socket?.readyState === WebSocket.OPEN) {
           socket.send(pcm.buffer);
         }
       };
 
-      // ONLY route mic input into the processor
-      source.connect(processor);
-      processor.connect(audioContext.destination); // destination is silent when context's output not used
+      // Connect the media source to the worklet (no output so it won't play back locally)
+      source.connect(micWorkletNode);
     }
 
     function stopMicrophone() {
+      if (micWorkletNode && typeof micWorkletNode.disconnect === "function") {
+        try { micWorkletNode.port.postMessage({ clear: true }); } catch(e){}
+        micWorkletNode.disconnect();
+        micWorkletNode = null;
+      }
       if (processor && typeof processor.disconnect === "function") {
         processor.disconnect();
         processor = null;
