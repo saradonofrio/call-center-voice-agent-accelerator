@@ -79,7 +79,7 @@
   </style>
 </head>
 <body>
-  <h1>🎙️Farmacia BOT</h1>
+  <h1>🎙️Farmacia24</h1>
   <div class="subtitle">Parla con il BOT della Farmacia. Clicca qui sotto per iniziare.</div>
 
   <div class="controls">
@@ -136,6 +136,7 @@
     }
 
     async function startMicrophone() {
+      console.log("Requesting microphone access...");
       mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -164,6 +165,7 @@
 
       // Connect the media source to the worklet (no output so it won't play back locally)
       source.connect(micWorkletNode);
+      console.log("Microphone started");
     }
 
     function stopMicrophone() {
