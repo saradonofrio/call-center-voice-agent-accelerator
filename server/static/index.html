@@ -200,29 +200,30 @@
         document.getElementById("startBtn").disabled = true;
         document.getElementById("stopBtn").disabled = false;
       };
-
+      console.log("Before onmessage");
       socket.onmessage = async (event) => {
-        console.log("WebSocket message received", event);
-        if (typeof event.data === "string") {
-          const msg = JSON.parse(event.data);
-          if (msg.Kind === "StopAudio") {
-            console.log("Audio stopped")
-            stopPlayback();
-          }
-          if (msg.Kind === "Transcription") {
-            console.log("Transcript:", msg.Text);
-          }
-         }
-        else if (event.data instanceof ArrayBuffer) {
+        try {
+          console.log("WebSocket message received", event);
+          if (typeof event.data === "string") {
+            const msg = JSON.parse(event.data);
+            if (msg.Kind === "StopAudio") {
+              console.log("Audio stopped")
+              stopPlayback();
+            }
+            if (msg.Kind === "Transcription") {
+              console.log("Transcript:", msg.Text);
+            }
+          } else if (event.data instanceof ArrayBuffer) {
             try {
-              playAudio(event.data);
+              await playAudio(event.data);
             } catch (e) {
               console.error("Failed to decode audio:", e);
             }
-        }
-        else
-        {
-          console.log("unknown message", event.data);
+          } else {
+            console.log("unknown message", event.data);
+          }
+        } catch (err) {
+          console.error("Error handling WebSocket message:", err, event);
         }
       }
 
