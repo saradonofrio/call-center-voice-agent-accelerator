@@ -190,6 +190,7 @@
       let wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
       let wsHost = window.location.host; 
       socket = new WebSocket(`${wsProtocol}://${wsHost}/web/ws`);
+      console.log("Connecting to WebSocket:", socket.url);
       socket.binaryType = "arraybuffer";
 
       socket.onopen = async () => {
@@ -201,6 +202,7 @@
       };
 
       socket.onmessage = async (event) => {
+        console.log("WebSocket message received", event);
         if (typeof event.data === "string") {
           const msg = JSON.parse(event.data);
           if (msg.Kind === "StopAudio") {
