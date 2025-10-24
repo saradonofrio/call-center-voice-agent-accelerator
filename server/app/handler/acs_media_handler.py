@@ -80,18 +80,18 @@ class ACSMediaHandler:
         # Use async context manager to auto-close the credential
             async with ManagedIdentityCredential(client_id=self.client_id) as credential:
                 token = await credential.get_token(
-                    #"https://cognitiveservices.azure.com/.default"
-                    "https://ai.azure.com/.default"
+                    "https://cognitiveservices.azure.com/.default"
+                    #"https://ai.azure.com/.default"
                 )
-                logger.info("[VoiceLiveACSHandler] Obtained token via managed identity: %s", token.token)
+                logger.info("[ACSMediaHandler] Obtained token via managed identity: %s", token.token)
                 headers["Authorization"] = f"Bearer {token.token}"
-                logger.info("[VoiceLiveACSHandler] Try to connect to Voice Live API by managed identity. Url: %s", url)
+                logger.info("[ACSMediaHandler] Try to connect to Voice Live API by managed identity. Url: %s", url)
         else:
             headers["api-key"] = self.api_key
 
+        logger.info("[ACSMediaHandler] Connected to URL: %s", url)
         self.ws = await ws_connect(url, additional_headers=headers)
-        logger.info("[VoiceLiveACSHandler] Connected to URL: %s", url)
-        logger.info("[VoiceLiveACSHandler] Connected to Voice Live API")
+        logger.info("[ACSMediaHandler] Connected to Voice Live API")
 
         await self._send_json(session_config())
         await self._send_json({"type": "response.create"})
@@ -129,7 +129,7 @@ class ACSMediaHandler:
                 if self.ws:
                     await self.ws.send(msg)
         except Exception:
-            logger.exception("[VoiceLiveACSHandler] Sender loop error")
+            logger.exception("[ACSMediaHandler] Sender loop error")
 
     async def _receiver_loop(self):
         """Handles incoming events from the Voice Live WebSocket."""
@@ -141,7 +141,7 @@ class ACSMediaHandler:
                 match event_type:
                     case "session.created":
                         session_id = event.get("session", {}).get("id")
-                        logger.info("[VoiceLiveACSHandler] Session ID: %s", session_id)
+                        logger.info("[ACSMediaHandler] Session ID: %s", session_id)
 
                     case "input_audio_buffer.cleared":
                         logger.info("Input Audio Buffer Cleared Message")
@@ -193,17 +193,17 @@ class ACSMediaHandler:
 
                     case _:
                         logger.debug(
-                            "[VoiceLiveACSHandler] Other event: %s", event_type
+                            "[ACSMediaHandler] Other event: %s", event_type
                         )
         except Exception:
-            logger.exception("[VoiceLiveACSHandler] Receiver loop error")
+            logger.exception("[ACSMediaHandler] Receiver loop error")
 
     async def send_message(self, message: Data):
         """Sends data back to client WebSocket."""
         try:
             await self.incoming_websocket.send(message)
         except Exception:
-            logger.exception("[VoiceLiveACSHandler] Failed to send message")
+            logger.exception("[ACSMediaHandler] Failed to send message")
 
     async def voicelive_to_acs(self, base64_data):
         """Converts Voice Live audio delta to ACS audio message."""
@@ -215,7 +215,7 @@ class ACSMediaHandler:
             }
             await self.send_message(json.dumps(data))
         except Exception:
-            logger.exception("[VoiceLiveACSHandler] Error in voicelive_to_acs")
+            logger.exception("[ACSMediaHandler] Error in voicelive_to_acs")
 
     async def stop_audio(self):
         """Sends a StopAudio signal to ACS."""
@@ -231,7 +231,7 @@ class ACSMediaHandler:
                 if not audio_data.get("silent", True):
                     await self.audio_to_voicelive(audio_data.get("data"))
         except Exception:
-            logger.exception("[VoiceLiveACSHandler] Error processing ACS audio")
+            logger.exception("[ACSMediaHandler] Error processing ACS audio")
 
     async def web_to_voicelive(self, audio_bytes):
         """Encodes raw audio bytes and sends to Voice Live API."""
