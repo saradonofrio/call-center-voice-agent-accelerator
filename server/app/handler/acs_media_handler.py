@@ -59,6 +59,14 @@ class ACSMediaHandler:
     def _generate_guid(self):
         return str(uuid.uuid4())
 
+    def _handle_task_exception(self, task):
+        try:
+            exc = task.exception()
+            if exc:
+                logger.error("Async task failed: %s", exc)
+        except Exception as e:
+            logger.error("Error checking task exception: %s", e)
+
     async def connect(self):
         """Connects to Azure Voice Live API via WebSocket."""
         endpoint = self.endpoint.rstrip("/")
@@ -72,22 +80,30 @@ class ACSMediaHandler:
         # Use async context manager to auto-close the credential
             async with ManagedIdentityCredential(client_id=self.client_id) as credential:
                 token = await credential.get_token(
-                    "https://cognitiveservices.azure.com/.default"
+                    #"https://cognitiveservices.azure.com/.default"
+                    "https://ai.azure.com/.default"
                 )
-                print(token.token)
+                logger.info("[VoiceLiveACSHandler] Obtained token via managed identity: %s", token.token)
                 headers["Authorization"] = f"Bearer {token.token}"
-                logger.info("[VoiceLiveACSHandler] Connected to Voice Live API by managed identity")
+                logger.info("[VoiceLiveACSHandler] Try to connect to Voice Live API by managed identity. Url: %s", url)
         else:
             headers["api-key"] = self.api_key
 
         self.ws = await ws_connect(url, additional_headers=headers)
+        logger.info("[VoiceLiveACSHandler] Connected to URL: %s", url)
         logger.info("[VoiceLiveACSHandler] Connected to Voice Live API")
 
         await self._send_json(session_config())
         await self._send_json({"type": "response.create"})
 
-        asyncio.create_task(self._receiver_loop())
+        receiver_task = asyncio.create_task(self._receiver_loop())
+        receiver_task.add_done_callback(self._handle_task_exception)
         self.send_task = asyncio.create_task(self._sender_loop())
+        self.send_task.add_done_callback(self._handle_task_exception)
+        receiver_task = asyncio.create_task(self._receiver_loop())
+        receiver_task.add_done_callback(self._handle_task_exception)
+        self.send_task = asyncio.create_task(self._sender_loop())
+        self.send_task.add_done_callback(self._handle_task_exception)
 
     async def init_incoming_websocket(self, socket, is_raw_audio=True):
         """Sets up incoming ACS WebSocket."""
