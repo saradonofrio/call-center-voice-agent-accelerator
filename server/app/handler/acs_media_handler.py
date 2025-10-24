@@ -83,14 +83,12 @@ class ACSMediaHandler:
                     "https://cognitiveservices.azure.com/.default"
                     #"https://ai.azure.com/.default"
                 )
-                logger.info("[ACSMediaHandler] Obtained token via managed identity: %s", token.token)
                 headers["Authorization"] = f"Bearer {token.token}"
-                logger.info("[ACSMediaHandler] Try to connect to Voice Live API by managed identity. Url: %s", url)
         else:
             headers["api-key"] = self.api_key
 
         logger.info("[ACSMediaHandler] Connected to URL: %s", url)
-        self.ws = await ws_connect(url, additional_headers=headers)
+        self.ws = await ws_connect(url, additional_headers=headers, subprotocols=["chat"])
         logger.info("[ACSMediaHandler] Connected to Voice Live API")
 
         await self._send_json(session_config())
