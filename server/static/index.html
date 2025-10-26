@@ -83,12 +83,16 @@
   <div class="subtitle">Parla con il BOT della Farmacia. Clicca qui sotto per iniziare.</div>
 
   <div class="controls">
-    <button id="startBtn" onclick="startStreaming()" title="Start talking to the voice agent">
-      Inizia a parlare con il BOT
-    </button>
-    <button id="stopBtn" onclick="stopStreaming()" disabled title="End the conversation with the agent">
-      Ferma la conversazione
-    </button>
+      <div id="chatContainer">
+        <div id="chatHistory"></div>
+        <div id="chatInputArea">
+          <input type="text" id="chatInput" placeholder="Scrivi un messaggio..." autocomplete="off" />
+          <button id="sendBtn" onclick="sendTextMessage()">Invia</button>
+          <button id="micBtn" onclick="toggleMic()" title="Parla con il bot">🎤</button>
+        </div>
+      </div>
+      <button id="stopBtn" onclick="stopStreaming()" disabled title="Ferma la conversazione">Ferma la conversazione</button>
+      <audio id="ttsPlayer" autoplay></audio>
   </div>
 
   <audio id="ttsPlayer" autoplay></audio>
@@ -100,6 +104,7 @@
   <script>
   let mediaStream, source, processor, micWorkletNode, socket;
   let audioContext = new AudioContext({ sampleRate: 24000 });
+  let isMicActive = false;
   let workletNode;
 
     // Load the AudioWorkletProcessor
@@ -183,8 +188,44 @@
     }
 
     function stopStreaming() {
-      socket.close();
+        stopPlayback();
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ Kind: "StopAudio" }));
+        }
+        socket.close();
+      }
+
+    function sendTextMessage() {
+      const input = document.getElementById("chatInput");
+      const text = input.value.trim();
+      if (text && socket && socket.readyState === WebSocket.OPEN) {
+        appendMessage("user", text);
+        socket.send(JSON.stringify({ Kind: "UserText", Text: text }));
+        input.value = "";
+      }
     }
+
+    function appendMessage(sender, text) {
+      const chatHistory = document.getElementById("chatHistory");
+      const msgDiv = document.createElement("div");
+      msgDiv.className = sender === "user" ? "chatBubble userBubble" : "chatBubble botBubble";
+      msgDiv.textContent = text;
+      chatHistory.appendChild(msgDiv);
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    function toggleMic() {
+      if (!isMicActive) {
+        startStreaming();
+        isMicActive = true;
+        document.getElementById("micBtn").classList.add("active");
+      } else {
+        stopStreaming();
+        isMicActive = false;
+        document.getElementById("micBtn").classList.remove("active");
+      }
+    }
+    
 
     function startStreaming() {
       let wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
@@ -202,29 +243,25 @@
       };
       console.log("Before onmessage");
       socket.onmessage = async (event) => {
-        try {
-          console.log("WebSocket message received", event);
-          if (typeof event.data === "string") {
-            const msg = JSON.parse(event.data);
-            if (msg.Kind === "StopAudio") {
-              console.log("Audio stopped")
-              stopPlayback();
+          try {
+            if (typeof event.data === "string") {
+              const msg = JSON.parse(event.data);
+              if (msg.Kind === "StopAudio") {
+                stopPlayback();
+              }
+              if (msg.Kind === "Transcription") {
+                appendMessage("bot", msg.Text);
+              }
+            } else if (event.data instanceof ArrayBuffer) {
+              try {
+                await playAudio(event.data);
+              } catch (e) {
+                console.error("Failed to decode audio:", e);
+              }
             }
-            if (msg.Kind === "Transcription") {
-              console.log("Transcript:", msg.Text);
-            }
-          } else if (event.data instanceof ArrayBuffer) {
-            try {
-              await playAudio(event.data);
-            } catch (e) {
-              console.error("Failed to decode audio:", e);
-            }
-          } else {
-            console.log("unknown message", event.data);
+          } catch (err) {
+            console.error("Error handling WebSocket message:", err, event);
           }
-        } catch (err) {
-          console.error("Error handling WebSocket message:", err, event);
-        }
       }
 
       socket.onclose = () => {
@@ -240,5 +277,100 @@
     // Initialize the audio processor
     loadAudioProcessor();
   </script>
+  <style>
+    body {
+      background: #ece5dd;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    #chatContainer {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      width: 400px;
+      max-width: 100vw;
+      display: flex;
+      flex-direction: column;
+      height: 80vh;
+      overflow: hidden;
+    }
+    #chatHistory {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: #ece5dd;
+    }
+    .chatBubble {
+      max-width: 70%;
+      padding: 10px 16px;
+      border-radius: 18px;
+      font-size: 16px;
+      word-break: break-word;
+      margin-bottom: 2px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .userBubble {
+      background: #dcf8c6;
+      align-self: flex-end;
+    }
+    .botBubble {
+      background: #fff;
+      align-self: flex-start;
+      border: 1px solid #e1e1e1;
+    }
+    #chatInputArea {
+      display: flex;
+      padding: 12px;
+      background: #f7f7f7;
+      border-top: 1px solid #e1e1e1;
+      gap: 8px;
+    }
+    #chatInput {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 20px;
+      border: 1px solid #e1e1e1;
+      font-size: 16px;
+      outline: none;
+    }
+    #sendBtn, #micBtn {
+      background: #25d366;
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      font-size: 18px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #sendBtn:hover, #micBtn.active {
+      background: #128c7e;
+    }
+    #stopBtn {
+      margin: 12px auto;
+      display: block;
+      background: #f44336;
+      color: #fff;
+      border: none;
+      border-radius: 20px;
+      padding: 8px 24px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #stopBtn:disabled {
+      background: #e1e1e1;
+      color: #888;
+      cursor: not-allowed;
+    }
+  </style>
 </body>
 </html>
