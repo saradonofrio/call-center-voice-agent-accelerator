@@ -14,7 +14,8 @@ class AOAITextHandler:
     async def get_bot_response(self, user_text):
         url = f"{self.endpoint}"
         # Acquire token for Azure OpenAI
-        token = await self.credential.get_token("https://cognitiveservices.azure.com/.default")
+        token = await self.credential.get_token("https://ai.azure.com/.default")
+        self.logger.debug(f"Acquired token for AOAI: {token.token[:10]}...")
         headers = {
             "Authorization": f"Bearer {token.token}",
             "Content-Type": "application/json"
