@@ -80,24 +80,17 @@ class ACSMediaHandler:
         # Use async context manager to auto-close the credential
             async with ManagedIdentityCredential(client_id=self.client_id) as credential:
                 token = await credential.get_token(
-                    "https://cognitiveservices.azure.com/.default"
-                    #"https://ai.azure.com/.default"
+                    "https://ai.azure.com/.default"
                 )
                 headers["Authorization"] = f"Bearer {token.token}"
         else:
             headers["api-key"] = self.api_key
 
-        logger.info("[ACSMediaHandler] Connected to URL: %s", url)
-        self.ws = await ws_connect(url, additional_headers=headers, subprotocols=["chat"])
-        logger.info("[ACSMediaHandler] Connected to Voice Live API")
+        self.ws = await ws_connect(url, additional_headers=headers)
 
         await self._send_json(session_config())
         await self._send_json({"type": "response.create"})
 
-        receiver_task = asyncio.create_task(self._receiver_loop())
-        receiver_task.add_done_callback(self._handle_task_exception)
-        self.send_task = asyncio.create_task(self._sender_loop())
-        self.send_task.add_done_callback(self._handle_task_exception)
         receiver_task = asyncio.create_task(self._receiver_loop())
         receiver_task.add_done_callback(self._handle_task_exception)
         self.send_task = asyncio.create_task(self._sender_loop())
