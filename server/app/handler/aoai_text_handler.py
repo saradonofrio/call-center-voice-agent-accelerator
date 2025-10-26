@@ -6,15 +6,15 @@ from azure.identity.aio import DefaultAzureCredential
 class AOAITextHandler:
     def __init__(self, config):
         self.config = config
-        self.endpoint = config.get("AZURE_VOICE_LIVE_ENDPOINT")
+        self.endpoint = config.get("AZURE_OPENAI_ENDPOINT")
         self.model = config.get("VOICE_LIVE_MODEL", "gpt-4o-mini")
         self.logger = logging.getLogger("AOAITextHandler")
         self.credential = DefaultAzureCredential()
 
     async def get_bot_response(self, user_text):
-        url = f"{self.endpoint}/openai/deployments/{self.model}/chat/completions?api-version=2024-02-15-preview"
+        url = f"{self.endpoint}"
         # Acquire token for Azure OpenAI
-        token = await self.credential.get_token("https://ai.azure.com/.default")
+        token = await self.credential.get_token("https://cognitiveservices.azure.com/.default")
         headers = {
             "Authorization": f"Bearer {token.token}",
             "Content-Type": "application/json"

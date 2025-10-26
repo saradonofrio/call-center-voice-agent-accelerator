@@ -48,7 +48,7 @@ class ACSMediaHandler:
     def __init__(self, config):
         self.endpoint = config["AZURE_VOICE_LIVE_ENDPOINT"]
         self.model = config["VOICE_LIVE_MODEL"]
-        self.api_key = config["AZURE_VOICE_LIVE_API_KEY"]
+        #self.api_key = config["AZURE_VOICE_LIVE_API_KEY"]
         self.client_id = config["AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID"]
         self.send_queue = asyncio.Queue()
         self.ws = None
