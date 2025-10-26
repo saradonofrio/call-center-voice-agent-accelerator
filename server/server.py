@@ -25,13 +25,12 @@ async def web_text_ws():
             await websocket.send(bot_response)
     except Exception:
         logger.exception("Web Text WebSocket connection closed")
-app.config["AZURE_VOICE_LIVE_API_KEY"] = os.getenv("AZURE_VOICE_LIVE_API_KEY", "")
 app.config["AZURE_VOICE_LIVE_ENDPOINT"] = os.getenv("AZURE_VOICE_LIVE_ENDPOINT")
+app.config["AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID"] = os.getenv(
+    "AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID", ""
 app.config["VOICE_LIVE_MODEL"] = os.getenv("VOICE_LIVE_MODEL", "gpt-4o-mini")
 app.config["ACS_CONNECTION_STRING"] = os.getenv("ACS_CONNECTION_STRING")
 app.config["ACS_DEV_TUNNEL"] = os.getenv("ACS_DEV_TUNNEL", "")
-app.config["AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID"] = os.getenv(
-    "AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID", ""
 )
 
 logging.basicConfig(
