@@ -87,22 +87,26 @@
         <div id="chatHistory"></div>
         <div id="chatInputArea">
           <input type="text" id="chatInput" placeholder="Scrivi un messaggio..." autocomplete="off" />
-          <button id="sendBtn" onclick="sendTextMessage()">Invia</button>
-          <button id="micBtn" onclick="toggleMic()" title="Parla con il bot">🎤</button>
+          <button id="sendBtn" onclick="sendTextMessage()" title="Invia messaggio">
+            <span aria-label="Invia" role="img">📤</span>
+          </button>
+          <button id="micBtn" onclick="toggleMic()" title="Parla con il bot">
+            <span aria-label="Microfono" role="img">🎤</span>
+          </button>
         </div>
       </div>
-      <button id="stopBtn" onclick="stopStreaming()" disabled title="Ferma la conversazione">Ferma la conversazione</button>
+  <button id="stopBtn" onclick="stopStreaming()" title="Ferma la conversazione">Ferma la conversazione</button>
       <audio id="ttsPlayer" autoplay></audio>
   </div>
 
   <audio id="ttsPlayer" autoplay></audio>
 
-  <footer>
+  <footer id="pageFooter">
     Powered by Azure Voice Live • Demo Mode
   </footer>
 
   <script>
-  let mediaStream, source, processor, micWorkletNode, socket;
+  let mediaStream, source, processor, micWorkletNode, socket, textSocket;
   let audioContext = new AudioContext({ sampleRate: 24000 });
   let isMicActive = false;
   let workletNode;
@@ -198,12 +202,22 @@
     function sendTextMessage() {
       const input = document.getElementById("chatInput");
       const text = input.value.trim();
-      if (text && socket && socket.readyState === WebSocket.OPEN) {
+      if (text) {
         appendMessage("user", text);
-        socket.send(JSON.stringify({ Kind: "UserText", Text: text }));
+        if (textSocket && textSocket.readyState === WebSocket.OPEN) {
+          textSocket.send(text);
+        }
         input.value = "";
       }
     }
+    
+    // Add this directly after the function above:
+    document.getElementById("chatInput").addEventListener("keydown", function(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        sendTextMessage();
+      }
+    });
 
     function appendMessage(sender, text) {
       const chatHistory = document.getElementById("chatHistory");
@@ -238,40 +252,58 @@
         console.log("WebSocket opened");
         await audioContext.resume();
         await startMicrophone();
-        document.getElementById("startBtn").disabled = true;
         document.getElementById("stopBtn").disabled = false;
       };
-      console.log("Before onmessage");
       socket.onmessage = async (event) => {
-          try {
-            if (typeof event.data === "string") {
-              const msg = JSON.parse(event.data);
-              if (msg.Kind === "StopAudio") {
-                stopPlayback();
-              }
-              if (msg.Kind === "Transcription") {
-                appendMessage("bot", msg.Text);
-              }
-            } else if (event.data instanceof ArrayBuffer) {
+        try {
+          if (typeof event.data === "string") {
+            const msg = JSON.parse(event.data);
+            if (msg.Kind === "StopAudio") {
+              stopPlayback();
+            }
+            if (msg.Kind === "Transcription") {
+              // Voice transcription from backend
+              appendMessage("user", msg.Text);
+            }
+            if (msg.Kind === "UserTranscription") {
+              // Bot response to voice transcription
+              appendMessage("bot", msg.Text);
+            }
+          } else if (event.data instanceof ArrayBuffer) {
+            if (isMicActive) {
               try {
                 await playAudio(event.data);
               } catch (e) {
                 console.error("Failed to decode audio:", e);
               }
             }
-          } catch (err) {
-            console.error("Error handling WebSocket message:", err, event);
           }
+        } catch (err) {
+          console.error("Error handling WebSocket message:", err, event);
+        }
       }
 
       socket.onclose = () => {
         console.log("WebSocket closed");
         stopMicrophone();
-        document.getElementById("startBtn").disabled = false;
         document.getElementById("stopBtn").disabled = true;
       };
 
       socket.onerror = (err) => console.error("WebSocket error", err);
+
+      // Setup text websocket for chat
+      textSocket = new WebSocket(`${wsProtocol}://${wsHost}/web/textws`);
+      textSocket.onopen = () => {
+        console.log("Text WebSocket opened");
+      };
+      textSocket.onmessage = (event) => {
+        // Bot response to text message
+        appendMessage("bot", event.data);
+      };
+      textSocket.onclose = () => {
+        console.log("Text WebSocket closed");
+      };
+      textSocket.onerror = (err) => console.error("Text WebSocket error", err);
     }
 
     // Initialize the audio processor
@@ -296,7 +328,8 @@
       max-width: 100vw;
       display: flex;
       flex-direction: column;
-      height: 80vh;
+      height: calc(80vh - 40px);
+      margin-bottom: 48px;
       overflow: hidden;
     }
     #chatHistory {
@@ -370,6 +403,18 @@
       background: #e1e1e1;
       color: #888;
       cursor: not-allowed;
+    }
+    #pageFooter {
+      position: fixed;
+      left: 0;
+      bottom: 0;
+      width: 100vw;
+      background: #ece5dd;
+      color: #666;
+      font-size: 0.85rem;
+      text-align: center;
+      padding: 8px 0;
+      z-index: 10;
     }
   </style>
 </body>
