@@ -220,6 +220,11 @@
 
     function toggleMic() {
       if (!isMicActive) {
+        // If bot is speaking, interrupt playback
+        if (typeof socket !== "undefined" && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ Kind: "StopAudio" }));
+          stopPlayback();
+        }
         startStreaming();
         isMicActive = true;
         document.getElementById("micBtn").classList.add("active");
