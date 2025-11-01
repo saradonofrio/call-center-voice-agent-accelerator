@@ -105,6 +105,7 @@
   let audioContext = new AudioContext({ sampleRate: 24000 });
   let isMicActive = false;
   let workletNode;
+  let wsReady = false;
 
     // Load the AudioWorkletProcessor
     async function loadAudioProcessor() {
@@ -202,12 +203,39 @@
       }
       isMicActive = false;
       document.getElementById("micBtn").classList.remove("active");
+      wsReady = false;
+      document.getElementById("sendBtn").disabled = true;
     }
 
     function sendTextMessage() {
       const input = document.getElementById("chatInput");
       const text = input.value.trim();
-      if (text && socket && socket.readyState === WebSocket.OPEN) {
+      if (!wsReady || !(socket && socket.readyState === WebSocket.OPEN)) {
+        // Avvia la connessione e invia il messaggio appena pronta
+        showStatusMessage("Connessione in corso...");
+        startStreaming();
+        // Attendi apertura WebSocket e invia il messaggio
+        let checkInterval = setInterval(() => {
+          if (wsReady && socket && socket.readyState === WebSocket.OPEN) {
+            clearInterval(checkInterval);
+            if (text) {
+              appendMessage("user", text);
+              socket.send(JSON.stringify({
+                type: "conversation.item.create",
+                input: {
+                  type: "input_text",
+                  text: text
+                }
+              }));
+              socket.send(JSON.stringify({ type: "response.create" }));
+              input.value = "";
+              showStatusMessage("");
+            }
+          }
+        }, 100);
+        return;
+      }
+      if (text) {
         appendMessage("user", text);
         // Send text input as conversation.item.create
         socket.send(JSON.stringify({
@@ -220,6 +248,7 @@
         // Commit input
         socket.send(JSON.stringify({ type: "response.create" }));
         input.value = "";
+        showStatusMessage("");
       }
     }
 
@@ -259,6 +288,9 @@
         await audioContext.resume();
         await startMicrophone();
         document.getElementById("stopBtn").disabled = false;
+        wsReady = true;
+        document.getElementById("sendBtn").disabled = false;
+        showStatusMessage("");
       };
       socket.onmessage = async (event) => {
         try {
@@ -299,13 +331,35 @@
       socket.onclose = () => {
         stopMicrophone();
         document.getElementById("stopBtn").disabled = true;
+        wsReady = false;
+        document.getElementById("sendBtn").disabled = true;
+        showStatusMessage("Connessione terminata. Premi il microfono per iniziare.");
       };
 
-      socket.onerror = (err) => console.error("WebSocket error", err);
+      socket.onerror = (err) => {
+        console.error("WebSocket error", err);
+        wsReady = false;
+        document.getElementById("sendBtn").disabled = true;
+        showStatusMessage("Errore di connessione. Riprova.");
+      };
     }
 
     // Initialize the audio processor
     loadAudioProcessor();
+
+    // Utility per mostrare messaggi di stato
+    function showStatusMessage(msg) {
+      let statusDiv = document.getElementById("statusMessage");
+      if (!statusDiv) {
+        statusDiv = document.createElement("div");
+        statusDiv.id = "statusMessage";
+        statusDiv.style.color = "#d32f2f";
+        statusDiv.style.margin = "8px 0";
+        statusDiv.style.fontSize = "15px";
+        document.getElementById("chatContainer").insertBefore(statusDiv, document.getElementById("chatHistory"));
+      }
+      statusDiv.textContent = msg;
+    }
   </script>
   <style>
     body {
