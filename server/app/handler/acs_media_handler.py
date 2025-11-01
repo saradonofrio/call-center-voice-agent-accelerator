@@ -19,6 +19,7 @@ def session_config():
         "type": "session.update",
         "session": {
             "instructions": "Sei un assistente virtuale che risponde in modo naturale e coinvolgente. Parla in italiano, a meno che le domande non arrivino in altra lingua. Ricordati che oggi è il giorno " + now().strftime("%d %B %Y") + ", usa questa data come riferimento temporale per rispondere alle domande.",
+            "modalities": ["text", "audio"],
             "turn_detection": {
                 "type": "azure_semantic_vad",
                 "threshold": 0.3,
