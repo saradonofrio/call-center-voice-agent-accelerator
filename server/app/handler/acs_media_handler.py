@@ -129,7 +129,17 @@ class ACSMediaHandler:
         """Handles incoming events from the Voice Live WebSocket."""
         try:
             async for message in self.ws:
-                event = json.loads(message)
+                # Binary vs JSON handling
+                if isinstance(message, (bytes, bytearray)):
+                    # Handle binary audio frames if needed
+                    logger.debug("Received binary message from Voice Live API (length: %d)", len(message))
+                    # You may want to forward this to ACS or process as needed
+                    continue
+                try:
+                    event = json.loads(message)
+                except Exception as e:
+                    logger.error("Failed to parse message as JSON: %s", e)
+                    continue
                 event_type = event.get("type")
 
                 match event_type:
@@ -145,7 +155,7 @@ class ACSMediaHandler:
                             "Voice activity detection started at %s ms",
                             event.get("audio_start_ms"),
                         )
-                        await self.stop_audio()
+                        # Removed await self.stop_audio() to avoid premature StopAudio
 
                     case "input_audio_buffer.speech_stopped":
                         logger.info("Speech stopped")
@@ -170,7 +180,7 @@ class ACSMediaHandler:
                     case "response.audio_transcript.done":
                         transcript = event.get("transcript")
                         logger.info("AI: %s", transcript)
-                        # Send text message event
+                        # Send only final transcript as text message event
                         await self.send_message(json.dumps({
                             "type": "message",
                             "message": {
@@ -184,21 +194,13 @@ class ACSMediaHandler:
                         transcript = event.get("transcript") if "transcript" in event else None
                         if self.is_raw_audio:
                             audio_bytes = base64.b64decode(delta)
-                            # Send audio event with optional transcript
+                            # Send audio event with optional transcript (interim)
                             await self.send_message(json.dumps({
                                 "type": "audio",
                                 "audio": delta,
                                 "text": transcript if transcript else None
                             }))
-                            # Also send text event if transcript is present
-                            if transcript:
-                                await self.send_message(json.dumps({
-                                    "type": "message",
-                                    "message": {
-                                        "text": transcript,
-                                        "author": "assistant"
-                                    }
-                                }))
+                            # Do NOT send transcript as text message here to avoid duplication
                         else:
                             await self.voicelive_to_acs(delta)
 
@@ -212,10 +214,10 @@ class ACSMediaHandler:
         except Exception:
             logger.exception("[ACSMediaHandler] Receiver loop error")
 
-    async def send_message(self, message: Data):
+    async def send_message(self, message: str | bytes):
         """Sends data back to client WebSocket."""
         try:
-            if isinstance(message, bytes):
+            if isinstance(message, (bytes, bytearray)):
                 await self.incoming_websocket.send(message)
             else:
                 await self.incoming_websocket.send(str(message))
