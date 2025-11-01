@@ -6,8 +6,8 @@ from app.handler.acs_event_handler import AcsEventHandler
 from app.handler.acs_media_handler import ACSMediaHandler
 from dotenv import load_dotenv
 from quart import Quart, request, websocket, Response
-from server.app.handler.acs_media_handler import ACSMediaHandler
-
+# from server.app.handler.acs_media_handler import ACSMediaHandler
+from app.handler.acs_media_handler import ACSMediaHandler
 load_dotenv()
 
 app = Quart(__name__)
