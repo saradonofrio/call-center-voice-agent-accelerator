@@ -163,6 +163,15 @@ class ACSMediaHandler:
                     case "conversation.item.input_audio_transcription.completed":
                         transcript = event.get("transcript")
                         logger.info("User: %s", transcript)
+                        # Send user transcript as chat message
+                        if transcript:
+                            await self.send_message(json.dumps({
+                                "type": "message",
+                                "message": {
+                                    "text": transcript,
+                                    "author": "user"
+                                }
+                            }))
 
                     case "conversation.item.input_audio_transcription.failed":
                         error_msg = event.get("error")
