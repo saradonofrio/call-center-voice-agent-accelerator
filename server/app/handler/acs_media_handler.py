@@ -46,6 +46,34 @@ def session_config():
 
 
 class ACSMediaHandler:
+    async def handle_websocket_message(self, message):
+        """Handles incoming messages from frontend WebSocket and routes text/audio to Voice Live."""
+        try:
+            if isinstance(message, (bytes, bytearray)):
+                # Assume raw audio bytes from web client
+                await self.web_to_voicelive(message)
+                return
+            data = json.loads(message)
+            msg_type = data.get("type")
+            if msg_type == "input_audio_buffer.append" and "audio" in data:
+                await self.audio_to_voicelive(data["audio"])
+            elif msg_type == "conversation.item.create":
+                input_obj = data.get("input", {})
+                if input_obj.get("type") == "input_text" and "text" in input_obj:
+                    await self.text_to_voicelive(input_obj["text"])
+        except Exception:
+            logger.exception("[ACSMediaHandler] Error handling frontend websocket message")
+    async def text_to_voicelive(self, text: str):
+        """Queues text data to be sent to Voice Live API as input_text."""
+        payload = {
+            "type": "conversation.item.create",
+            "input": {
+                "type": "input_text",
+                "text": text
+            }
+        }
+        await self.send_queue.put(json.dumps(payload))
+
     """Manages audio streaming between client and Azure Voice Live API."""
 
     def __init__(self, config):
@@ -155,7 +183,6 @@ class ACSMediaHandler:
                             "Voice activity detection started at %s ms",
                             event.get("audio_start_ms"),
                         )
-                        # Removed await self.stop_audio() to avoid premature StopAudio
 
                     case "input_audio_buffer.speech_stopped":
                         logger.info("Speech stopped")
@@ -163,7 +190,6 @@ class ACSMediaHandler:
                     case "conversation.item.input_audio_transcription.completed":
                         transcript = event.get("transcript")
                         logger.info("User: %s", transcript)
-                        # Send user transcript as chat message
                         if transcript:
                             await self.send_message(json.dumps({
                                 "type": "message",
@@ -177,6 +203,21 @@ class ACSMediaHandler:
                         error_msg = event.get("error")
                         logger.warning("Transcription Error: %s", error_msg)
 
+                    case "conversation.item.completed":
+                        # Text message completed (bot response)
+                        output = event.get("output", {})
+                        if output.get("type") == "output_text":
+                            text = output.get("text")
+                            logger.info("Bot (text): %s", text)
+                            if text:
+                                await self.send_message(json.dumps({
+                                    "type": "message",
+                                    "message": {
+                                        "text": text,
+                                        "author": "assistant"
+                                    }
+                                }))
+
                     case "response.done":
                         response = event.get("response", {})
                         logger.info("Response Done: Id=%s", response.get("id"))
@@ -189,7 +230,6 @@ class ACSMediaHandler:
                     case "response.audio_transcript.done":
                         transcript = event.get("transcript")
                         logger.info("AI: %s", transcript)
-                        # Send only final transcript as text message event
                         await self.send_message(json.dumps({
                             "type": "message",
                             "message": {
@@ -203,13 +243,11 @@ class ACSMediaHandler:
                         transcript = event.get("transcript") if "transcript" in event else None
                         if self.is_raw_audio:
                             audio_bytes = base64.b64decode(delta)
-                            # Send audio event with optional transcript (interim)
                             await self.send_message(json.dumps({
                                 "type": "audio",
                                 "audio": delta,
                                 "text": transcript if transcript else None
                             }))
-                            # Do NOT send transcript as text message here to avoid duplication
                         else:
                             await self.voicelive_to_acs(delta)
 

@@ -6,6 +6,7 @@ from app.handler.acs_event_handler import AcsEventHandler
 from app.handler.acs_media_handler import ACSMediaHandler
 from dotenv import load_dotenv
 from quart import Quart, request, websocket, Response
+from server.app.handler.acs_media_handler import ACSMediaHandler
 
 load_dotenv()
 
@@ -79,20 +80,18 @@ async def acs_ws():
         logger.exception("ACS WebSocket connection closed")
 
 
-@app.websocket("/web/ws")
-async def web_ws():
-    """WebSocket endpoint for web clients to send audio to Voice Live."""
-    logger = logging.getLogger("web_ws")
-    logger.info("Incoming Web WebSocket connection")
-    handler = ACSMediaHandler(app.config)
-    await handler.init_incoming_websocket(websocket, is_raw_audio=True)
-    asyncio.create_task(handler.connect())
+@websocket.route("/web/ws")
+async def websocket_handler():
+    handler = ACSMediaHandler(config)
+    await handler.init_incoming_websocket(websocket._get_current_object())
+    await handler.connect()
     try:
-        while True:
-            msg = await websocket.receive()
-            await handler.web_to_voicelive(msg)
-    except Exception:
-        logger.exception("Web WebSocket connection closed")
+        async for message in websocket:
+            await handler.handle_websocket_message(message)
+    except Exception as e:
+        logger.error("WebSocket error: %s", e)
+    finally:
+        await handler.stop_audio()
 
 
 @app.route("/")
