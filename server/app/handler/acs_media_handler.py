@@ -193,7 +193,10 @@ class ACSMediaHandler:
     async def send_message(self, message: Data):
         """Sends data back to client WebSocket."""
         try:
-            await self.incoming_websocket.send(message)
+            if isinstance(message, bytes):
+                await self.incoming_websocket.send(message)
+            else:
+                await self.incoming_websocket.send(str(message))
         except Exception:
             logger.exception("[ACSMediaHandler] Failed to send message")
 
