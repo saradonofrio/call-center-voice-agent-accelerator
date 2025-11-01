@@ -247,25 +247,40 @@
       };
       console.log("Before onmessage");
       socket.onmessage = async (event) => {
-          try {
-            if (typeof event.data === "string") {
-              const msg = JSON.parse(event.data);
-              if (msg.Kind === "StopAudio") {
-                stopPlayback();
+        try {
+          if (typeof event.data === "string") {
+            const msg = JSON.parse(event.data);
+            if (msg.type === "message" && msg.message && msg.message.text) {
+              appendMessage("bot", msg.message.text);
+            }
+            if (msg.type === "audio") {
+              // If text is present, render it
+              if (msg.text) {
+                appendMessage("bot", msg.text);
               }
-              if (msg.Kind === "Transcription") {
-                appendMessage("bot", msg.Text);
-              }
-            } else if (event.data instanceof ArrayBuffer) {
-              try {
-                await playAudio(event.data);
-              } catch (e) {
-                console.error("Failed to decode audio:", e);
+              // If audio is base64, decode and play
+              if (msg.audio) {
+                try {
+                  const audioBytes = Uint8Array.from(atob(msg.audio), c => c.charCodeAt(0)).buffer;
+                  await playAudio(audioBytes);
+                } catch (e) {
+                  console.error("Failed to decode/play audio:", e);
+                }
               }
             }
-          } catch (err) {
-            console.error("Error handling WebSocket message:", err, event);
+            if (msg.Kind === "StopAudio") {
+              stopPlayback();
+            }
+          } else if (event.data instanceof ArrayBuffer) {
+            try {
+              await playAudio(event.data);
+            } catch (e) {
+              console.error("Failed to decode audio:", e);
+            }
           }
+        } catch (err) {
+          console.error("Error handling WebSocket message:", err, event);
+        }
       }
 
       socket.onclose = () => {

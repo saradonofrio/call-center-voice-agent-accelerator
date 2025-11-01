@@ -170,15 +170,35 @@ class ACSMediaHandler:
                     case "response.audio_transcript.done":
                         transcript = event.get("transcript")
                         logger.info("AI: %s", transcript)
-                        await self.send_message(
-                            json.dumps({"Kind": "Transcription", "Text": transcript})
-                        )
+                        # Send text message event
+                        await self.send_message(json.dumps({
+                            "type": "message",
+                            "message": {
+                                "text": transcript,
+                                "author": "assistant"
+                            }
+                        }))
 
                     case "response.audio.delta":
                         delta = event.get("delta")
+                        transcript = event.get("transcript") if "transcript" in event else None
                         if self.is_raw_audio:
                             audio_bytes = base64.b64decode(delta)
-                            await self.send_message(audio_bytes)
+                            # Send audio event with optional transcript
+                            await self.send_message(json.dumps({
+                                "type": "audio",
+                                "audio": delta,
+                                "text": transcript if transcript else None
+                            }))
+                            # Also send text event if transcript is present
+                            if transcript:
+                                await self.send_message(json.dumps({
+                                    "type": "message",
+                                    "message": {
+                                        "text": transcript,
+                                        "author": "assistant"
+                                    }
+                                }))
                         else:
                             await self.voicelive_to_acs(delta)
 
