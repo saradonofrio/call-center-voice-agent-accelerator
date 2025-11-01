@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+from venv import logger
 
 from app.handler.acs_event_handler import AcsEventHandler
 from app.handler.acs_media_handler import ACSMediaHandler
@@ -82,14 +83,14 @@ async def acs_ws():
 
 @websocket.route("/web/ws")
 async def websocket_handler():
-    handler = ACSMediaHandler(config)
+    handler = ACSMediaHandler(app.config)
     await handler.init_incoming_websocket(websocket._get_current_object())
     await handler.connect()
     try:
         async for message in websocket:
             await handler.handle_websocket_message(message)
     except Exception as e:
-        logger.error("WebSocket error: %s", e)
+        logger.exception("WebSocket error: %s", e)
     finally:
         await handler.stop_audio()
 
