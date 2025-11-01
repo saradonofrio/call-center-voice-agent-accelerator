@@ -188,12 +188,17 @@
     }
 
     function stopStreaming() {
-        stopPlayback();
-        if (socket && socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ Kind: "StopAudio" }));
-        }
+      stopPlayback();
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ Kind: "StopAudio" }));
         socket.close();
+      } else {
+        // If already closed, just ensure button disables
+        document.getElementById("stopBtn").disabled = true;
       }
+      isMicActive = false;
+      document.getElementById("micBtn").classList.remove("active");
+    }
 
     function sendTextMessage() {
       const input = document.getElementById("chatInput");
@@ -238,7 +243,7 @@
         console.log("WebSocket opened");
         await audioContext.resume();
         await startMicrophone();
-        document.getElementById("startBtn").disabled = true;
+        // document.getElementById("startBtn").disabled = true;
         document.getElementById("stopBtn").disabled = false;
       };
       console.log("Before onmessage");
@@ -267,7 +272,7 @@
       socket.onclose = () => {
         console.log("WebSocket closed");
         stopMicrophone();
-        document.getElementById("startBtn").disabled = false;
+        // document.getElementById("startBtn").disabled = false;
         document.getElementById("stopBtn").disabled = true;
       };
 
