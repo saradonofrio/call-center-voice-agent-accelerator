@@ -5,6 +5,7 @@ import base64
 import json
 import logging
 import uuid
+import datetime
 
 from azure.identity.aio import ManagedIdentityCredential
 from websockets.asyncio.client import connect as ws_connect
@@ -15,10 +16,11 @@ logger = logging.getLogger(__name__)
 
 def session_config():
     """Returns the default session configuration for Voice Live."""
+    today = datetime.datetime.now().strftime("%d %B %Y")
     return {
         "type": "session.update",
         "session": {
-            "instructions": "Sei un assistente virtuale che risponde in modo naturale e coinvolgente. Parla in italiano, a meno che le domande non arrivino in altra lingua. Ricordati che oggi è il giorno " + now().strftime("%d %B %Y") + ", usa questa data come riferimento temporale per rispondere alle domande.",
+            "instructions": f"Sei un assistente virtuale che risponde in modo naturale e coinvolgente. Parla in italiano, a meno che le domande non arrivino in altra lingua. Ricordati che oggi è il giorno {today}, usa questa data come riferimento temporale per rispondere alle domande.",
             "modalities": ["text", "audio"],
             "turn_detection": {
                 "type": "azure_semantic_vad",
