@@ -240,17 +240,12 @@
       let wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
       let wsHost = window.location.host; 
       socket = new WebSocket(`${wsProtocol}://${wsHost}/web/ws`);
-      console.log("Connecting to WebSocket:", socket.url);
       socket.binaryType = "arraybuffer";
-
       socket.onopen = async () => {
-        console.log("WebSocket opened");
         await audioContext.resume();
         await startMicrophone();
-        // document.getElementById("startBtn").disabled = true;
         document.getElementById("stopBtn").disabled = false;
       };
-      console.log("Before onmessage");
       socket.onmessage = async (event) => {
         try {
           if (typeof event.data === "string") {
@@ -289,9 +284,7 @@
       }
 
       socket.onclose = () => {
-        console.log("WebSocket closed");
         stopMicrophone();
-        // document.getElementById("startBtn").disabled = false;
         document.getElementById("stopBtn").disabled = true;
       };
 
