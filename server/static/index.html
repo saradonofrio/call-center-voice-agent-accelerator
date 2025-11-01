@@ -162,12 +162,7 @@
         if (!float32) return;
         const pcm = float32ToInt16(float32);
         if (socket?.readyState === WebSocket.OPEN) {
-          // Encode PCM as base64
-          const audioB64 = btoa(String.fromCharCode(...new Uint8Array(pcm.buffer)));
-          socket.send(JSON.stringify({
-            type: "input_audio_buffer.append",
-            audio: audioB64
-          }));
+          socket.send(pcm.buffer);
         }
       };
 
@@ -209,16 +204,7 @@
       const text = input.value.trim();
       if (text && socket && socket.readyState === WebSocket.OPEN) {
         appendMessage("user", text);
-        // Send text input as conversation.item.create
-        socket.send(JSON.stringify({
-          type: "conversation.item.create",
-          input: {
-            type: "input_text",
-            text: text
-          }
-        }));
-        // Commit input
-        socket.send(JSON.stringify({ type: "response.create" }));
+        socket.send(JSON.stringify({ Kind: "UserText", Text: text }));
         input.value = "";
       }
     }
@@ -264,22 +250,23 @@
         try {
           if (typeof event.data === "string") {
             const msg = JSON.parse(event.data);
-            // Text reply from bot
             if (msg.type === "message" && msg.message && msg.message.text) {
               appendMessage("bot", msg.message.text);
             }
-            // Audio chunk from bot
-            if (msg.type === "response.audio.delta" && msg.delta) {
-              try {
-                const audioBytes = Uint8Array.from(atob(msg.delta), c => c.charCodeAt(0)).buffer;
-                await playAudio(audioBytes);
-              } catch (e) {
-                console.error("Failed to decode/play audio:", e);
+            if (msg.type === "audio") {
+              // If text is present, render it
+              if (msg.text) {
+                appendMessage("bot", msg.text);
               }
-            }
-            // Final transcript of what was spoken
-            if (msg.type === "response.audio_transcript.done" && msg.transcript) {
-              appendMessage("bot", msg.transcript);
+              // If audio is base64, decode and play
+              if (msg.audio) {
+                try {
+                  const audioBytes = Uint8Array.from(atob(msg.audio), c => c.charCodeAt(0)).buffer;
+                  await playAudio(audioBytes);
+                } catch (e) {
+                  console.error("Failed to decode/play audio:", e);
+                }
+              }
             }
             if (msg.Kind === "StopAudio") {
               stopPlayback();
