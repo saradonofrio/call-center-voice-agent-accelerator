@@ -4,42 +4,14 @@ import os
 
 from app.handler.acs_event_handler import AcsEventHandler
 from app.handler.acs_media_handler import ACSMediaHandler
-from app.handler.aoai_text_handler import AOAITextHandler
 from dotenv import load_dotenv
 from quart import Quart, request, websocket, Response
 
 load_dotenv()
 
 app = Quart(__name__)
-aoai_text_handler = AOAITextHandler(app.config)
-@app.websocket("/web/textws")
-async def web_text_ws():
-    """WebSocket endpoint for web clients to send text and receive bot response via AOAI."""
-    logger = logging.getLogger("web_text_ws")
-    logger.info("Incoming Web Text WebSocket connection")
-    try:
-        while True:
-            user_text = await websocket.receive()
-            logger.info(f"Received user text: {user_text}")
-            bot_response = await aoai_text_handler.get_bot_response(user_text)
-            await websocket.send(bot_response)
-    except Exception:
-        logger.exception("Web Text WebSocket connection closed")
-app.config["AZURE_VOICE_LIVE_ENDPOINT"] = os.getenv("AZURE_VOICE_LIVE_ENDPOINT")
-app.config["AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID"] = os.getenv(
-    "AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID", "")
-app.config["VOICE_LIVE_MODEL"] = os.getenv("VOICE_LIVE_MODEL", "gpt-4o-mini")
-app.config["ACS_CONNECTION_STRING"] = os.getenv("ACS_CONNECTION_STRING")
-app.config["ACS_DEV_TUNNEL"] = os.getenv("ACS_DEV_TUNNEL", "")
-app.config["AZURE_OPENAI_ENDPOINT"] = os.getenv("AZURE_OPENAI_ENDPOINT")
-
-
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s: %(message)s"
-)
 
 acs_handler = AcsEventHandler(app.config)
-
 
 @app.route("/acs/incomingcall", methods=["POST"])
 async def incoming_call_handler():
