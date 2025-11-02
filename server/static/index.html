@@ -87,9 +87,10 @@
         <div id="chatHistory"></div>
         <div id="chatInputArea">
           <input type="text" id="chatInput" placeholder="Scrivi un messaggio..." autocomplete="off" />
-          <button id="sendBtn" onclick="sendTextMessage()" title="Invia messaggio">
+<!--          <button id="sendBtn" onclick="sendTextMessage()" title="Invia messaggio">
             <span aria-label="Invia" role="img">📤</span>
           </button>
+-->
           <button id="micBtn" onclick="toggleMic()" title="Parla con il bot">
             <span aria-label="Microfono" role="img">🎤</span>
           </button>
@@ -292,19 +293,28 @@
               console.log("StopAudio received");
               stopPlayback();
             }
+            // User voice transcription (from microphone)
+            if (msg.Kind === "UserVoiceTranscription") {
+              console.log("User voice transcription received:", msg.Text);
+              appendMessage("user", msg.Text);
+            }
+            // Bot voice response transcription (audio response from bot)
+            if (msg.Kind === "BotVoiceTranscription") {
+              console.log("Bot voice transcription received:", msg.Text);
+              appendMessage("bot", msg.Text);
+            }
+            // Bot text response (for text-only chat)
+            if (msg.Kind === "BotResponse") {
+              console.log("BotResponse received:", msg.Text);
+              appendMessage("bot", msg.Text);
+            }
+            // Legacy support (backwards compatibility)
             if (msg.Kind === "Transcription") {
-              console.log("Transcription received:", msg.Text);
-              // Voice transcription from backend
+              console.log("Legacy Transcription received:", msg.Text);
               appendMessage("user", msg.Text);
             }
             if (msg.Kind === "UserTranscription") {
-              console.log("UserTranscription received:", msg.Text);
-              // Bot response to voice transcription
-              appendMessage("bot", msg.Text);
-            }
-            if (msg.Kind === "BotResponse") {
-              console.log("BotResponse received:", msg.Text);
-              // Text response from bot
+              console.log("Legacy UserTranscription received:", msg.Text);
               appendMessage("bot", msg.Text);
             }
           } else if (event.data instanceof ArrayBuffer) {
@@ -374,7 +384,6 @@
       border-radius: 18px;
       font-size: 16px;
       word-break: break-word;
-      margin-bottom: 2px;
       box-shadow: 0 1px 2px rgba(0,0,0,0.04);
       display: inline-block;
     }
@@ -382,14 +391,14 @@
       background: #25d366;
       color: #fff;
       align-self: flex-end;
-      margin-left: auto;
+      text-align: left;
       border: none;
     }
     .botBubble {
       background: #fff;
       color: #333;
       align-self: flex-start;
-      margin-right: auto;
+      text-align: left;
       border: 1px solid #e1e1e1;
     }
     #chatInputArea {
