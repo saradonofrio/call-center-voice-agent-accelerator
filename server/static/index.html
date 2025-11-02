@@ -204,7 +204,13 @@
       const text = input.value.trim();
       if (text && socket && socket.readyState === WebSocket.OPEN) {
         appendMessage("user", text);
-        socket.send(JSON.stringify({ Kind: "UserText", Text: text }));
+        socket.send(JSON.stringify({
+          type: "conversation.item.create",
+          input: {
+            type: "input_text",
+            text: text
+          }
+        }));
         input.value = "";
       }
     }

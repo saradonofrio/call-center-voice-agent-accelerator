@@ -85,15 +85,6 @@ async def acs_ws():
 @app.websocket("/web/ws")
 async def websocket_handler():
     handler = ACSMediaHandler(app.config)
-    await handler.init_incoming_websocket(websocket._get_current_object())
-    await handler.connect()
-    try:
-        async for message in websocket:
-            await handler.handle_websocket_message(message)
-    except Exception as e:
-        logging.getLogger("websocket_handler").exception("WebSocket error: %s", e)
-    finally:
-        await handler.stop_audio()
 
 
 @app.route("/")
