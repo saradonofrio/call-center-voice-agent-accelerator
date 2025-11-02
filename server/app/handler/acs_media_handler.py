@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+from datetime import datetime
 import json
 import logging
 import uuid
@@ -15,10 +16,11 @@ logger = logging.getLogger(__name__)
 
 def session_config():
     """Returns the default session configuration for Voice Live."""
+    today = datetime.now().strftime("%d %B %Y")
     return {
         "type": "session.update",
         "session": {
-            "instructions": "You are a helpful AI assistant responding in natural, engaging language.",
+            "instructions": f"Sei un assistente virtuale che risponde in modo naturale e coinvolgente. Parla in italiano, a meno che le domande non arrivino in altra lingua. Ricordati che oggi è il giorno {today}, usa questa data come riferimento temporale per rispondere alle domande. Inizia la conversazione chiedendo Come posso esserti utile?",
             "turn_detection": {
                 "type": "azure_semantic_vad",
                 "threshold": 0.3,
