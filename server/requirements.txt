@@ -1,7 +1,6 @@
-quart
-python-dotenv
-azure-identity
-websockets
-azure-communication-callautomation
-azure-eventgrid
-websockets
+quart==0.18.4
+python-dotenv==1.0.0
+azure-identity==1.14.0
+websockets==10.4
+azure-communication-callautomation==1.0.0b1
+azure-eventgrid==4.9.0
