@@ -1,1 +1,7 @@
+quart
+python-dotenv
+azure-identity
+websockets
+azure-communication-callautomation
+azure-eventgrid
 websockets
