@@ -20,6 +20,7 @@ def session_config():
     return {
         "type": "session.update",
         "session": {
+            "modalities": ["text", "audio"],
             "instructions": f"Sei un assistente virtuale farmacista che risponde in modo naturale e con frasi brevi e che non parla di altri argomenti. Parla in italiano, a meno che le domande non arrivino in altra lingua. Ricordati che oggi è il giorno {today}, usa questa data come riferimento temporale per rispondere alle domande. Parla solo di argomenti inerenti la farmacia. Inizia la conversazione chiedendo Come posso esserti utile?",
             "turn_detection": {
                 "type": "azure_semantic_vad",
@@ -129,6 +130,8 @@ class ACSMediaHandler:
             async for message in self.ws:
                 event = json.loads(message)
                 event_type = event.get("type")
+                
+                logger.debug("[_receiver_loop] Received event type: %s", event_type)
 
                 match event_type:
                     case "session.created":
@@ -168,9 +171,11 @@ class ACSMediaHandler:
                     case "response.audio_transcript.done":
                         transcript = event.get("transcript")
                         logger.info("AI: %s", transcript)
-                        await self.send_message(
-                            json.dumps({"Kind": "Transcription", "Text": transcript})
-                        )
+                        # Only send transcript if input was voice
+                        if self.is_raw_audio:
+                            await self.send_message(
+                                json.dumps({"Kind": "Transcription", "Text": transcript})
+                            )
 
                     case "response.audio.delta":
                         delta = event.get("delta")
@@ -179,6 +184,28 @@ class ACSMediaHandler:
                             await self.send_message(audio_bytes)
                         else:
                             await self.voicelive_to_acs(delta)
+
+                    case "conversation.item.completed":
+                        # Text response from Azure Voice Live API
+                        item = event.get("item", {})
+                        if item.get("type") == "message" and item.get("role") == "assistant":
+                            content_list = item.get("content", [])
+                            for content in content_list:
+                                if content.get("type") == "text":
+                                    text = content.get("text")
+                                    logger.info("Bot (text): %s", text)
+                                    if text and not self.is_raw_audio:
+                                        # Send text response to ACS client
+                                        await self.send_message(json.dumps({
+                                            "Kind": "BotResponse",
+                                            "Text": text
+                                        }))
+                                    elif text and self.is_raw_audio:
+                                        # Send text response to web client
+                                        await self.send_message(json.dumps({
+                                            "Kind": "BotResponse",
+                                            "Text": text
+                                        }))
 
                     case "error":
                         logger.error("Voice Live Error: %s", event)
@@ -225,7 +252,65 @@ class ACSMediaHandler:
         except Exception:
             logger.exception("[ACSMediaHandler] Error processing ACS audio")
 
+    async def handle_websocket_message(self, message):
+        """Handles incoming messages from frontend WebSocket and routes text/audio to Voice Live."""
+        try:
+            if isinstance(message, (bytes, bytearray)):
+                # Assume raw audio bytes from web client
+                await self.web_to_voicelive(message)
+                return
+            
+            logger.info("[handle_websocket_message] Received text message: %s", message[:200])
+            data = json.loads(message)
+            msg_type = data.get("type")
+            logger.info("[handle_websocket_message] Message type: %s", msg_type)
+            
+            if msg_type == "input_audio_buffer.append" and "audio" in data:
+                await self.audio_to_voicelive(data["audio"])
+            elif msg_type == "conversation.item.create":
+                item = data.get("item", {})
+                logger.info("[handle_websocket_message] Item: %s", item)
+                # Check for old format (input field)
+                input_obj = data.get("input", {})
+                if input_obj.get("type") == "input_text" and "text" in input_obj:
+                    logger.info("[handle_websocket_message] Text from old format: %s", input_obj["text"])
+                    await self.text_to_voicelive(input_obj["text"])
+                # Check for new format (item field)
+                elif item.get("type") == "message":
+                    content_list = item.get("content", [])
+                    for content in content_list:
+                        if content.get("type") == "input_text" and "text" in content:
+                            logger.info("[handle_websocket_message] Text from new format: %s", content["text"])
+                            await self.text_to_voicelive(content["text"])
+        except Exception:
+            logger.exception("[ACSMediaHandler] Error handling frontend websocket message")
+
+    async def text_to_voicelive(self, text: str):
+        """Queues text data to be sent to Voice Live API as input_text and commits it."""
+        logger.info("[text_to_voicelive] Sending text to Voice Live: %s", text)
+        payload = {
+            "type": "conversation.item.create",
+            "item": {
+                "type": "message",
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": text
+                    }
+                ]
+            }
+        }
+        logger.info("[text_to_voicelive] Payload: %s", json.dumps(payload, indent=2))
+        await self.send_queue.put(json.dumps(payload))
+        # Send commit event immediately after
+        await self.send_queue.put(json.dumps({"type": "response.create"}))
+        logger.info("[text_to_voicelive] Sent response.create")
+
     async def web_to_voicelive(self, audio_bytes):
         """Encodes raw audio bytes and sends to Voice Live API."""
+        if not isinstance(audio_bytes, (bytes, bytearray)):
+            logger.warning("web_to_voicelive called with non-bytes input, skipping. Type: %s", type(audio_bytes))
+            return
         audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
         await self.audio_to_voicelive(audio_b64)

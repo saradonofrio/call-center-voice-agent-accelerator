@@ -95,7 +95,7 @@
           </button>
         </div>
       </div>
-  <button id="stopBtn" onclick="stopStreaming()" title="Ferma la conversazione">Ferma la conversazione</button>
+<!--  <button id="stopBtn" onclick="stopStreaming()" title="Ferma la conversazione">Ferma la conversazione</button> -->
       <audio id="ttsPlayer" autoplay></audio>
   </div>
 
@@ -106,7 +106,7 @@
   </footer>
 
   <script>
-  let mediaStream, source, processor, micWorkletNode, socket, textSocket;
+  let mediaStream, source, processor, micWorkletNode, socket;
   let audioContext = new AudioContext({ sampleRate: 24000 });
   let isMicActive = false;
   let workletNode;
@@ -123,6 +123,10 @@
 
     async function playAudio(arrayBuffer) {
       if (audioContext.state === 'suspended') await audioContext.resume();
+      if (arrayBuffer.byteLength % 2 !== 0) {
+        console.warn("Received audio buffer with invalid length, skipping playback.");
+        return;
+      }
       const int16 = new Int16Array(arrayBuffer);
       const float32 = new Float32Array(int16.length);
       for (let i = 0; i < int16.length; i++) {
@@ -202,11 +206,35 @@
     function sendTextMessage() {
       const input = document.getElementById("chatInput");
       const text = input.value.trim();
-      if (text) {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        console.log("WebSocket not open, starting streaming...");
+        startStreaming();
+        socket.onopen = () => {
+          console.log("WebSocket opened, sending text:", text);
+          appendMessage("user", text);
+          const payload = {
+            type: "conversation.item.create",
+            input: {
+              type: "input_text",
+              text: text
+            }
+          };
+          console.log("Sending payload:", JSON.stringify(payload, null, 2));
+          socket.send(JSON.stringify(payload));
+          input.value = "";
+        };
+      } else if (text) {
+        console.log("Sending text via existing socket:", text);
         appendMessage("user", text);
-        if (textSocket && textSocket.readyState === WebSocket.OPEN) {
-          textSocket.send(text);
-        }
+        const payload = {
+          type: "conversation.item.create",
+          input: {
+            type: "input_text",
+            text: text
+          }
+        };
+        console.log("Sending payload:", JSON.stringify(payload, null, 2));
+        socket.send(JSON.stringify(payload));
         input.value = "";
       }
     }
@@ -257,19 +285,30 @@
       socket.onmessage = async (event) => {
         try {
           if (typeof event.data === "string") {
+            console.log("Received text message from server:", event.data);
             const msg = JSON.parse(event.data);
+            console.log("Parsed message:", msg);
             if (msg.Kind === "StopAudio") {
+              console.log("StopAudio received");
               stopPlayback();
             }
             if (msg.Kind === "Transcription") {
+              console.log("Transcription received:", msg.Text);
               // Voice transcription from backend
               appendMessage("user", msg.Text);
             }
             if (msg.Kind === "UserTranscription") {
+              console.log("UserTranscription received:", msg.Text);
               // Bot response to voice transcription
               appendMessage("bot", msg.Text);
             }
+            if (msg.Kind === "BotResponse") {
+              console.log("BotResponse received:", msg.Text);
+              // Text response from bot
+              appendMessage("bot", msg.Text);
+            }
           } else if (event.data instanceof ArrayBuffer) {
+            console.log("Received audio data, size:", event.data.byteLength);
             if (isMicActive) {
               try {
                 await playAudio(event.data);
@@ -291,19 +330,7 @@
 
       socket.onerror = (err) => console.error("WebSocket error", err);
 
-      // Setup text websocket for chat
-      textSocket = new WebSocket(`${wsProtocol}://${wsHost}/web/textws`);
-      textSocket.onopen = () => {
-        console.log("Text WebSocket opened");
-      };
-      textSocket.onmessage = (event) => {
-        // Bot response to text message
-        appendMessage("bot", event.data);
-      };
-      textSocket.onclose = () => {
-        console.log("Text WebSocket closed");
-      };
-      textSocket.onerror = (err) => console.error("Text WebSocket error", err);
+      // No separate textSocket needed; text and audio handled by same socket
     }
 
     // Initialize the audio processor

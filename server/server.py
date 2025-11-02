@@ -1,7 +1,8 @@
 import asyncio
 import logging
-import os
+import sys
 
+import os
 from app.handler.acs_event_handler import AcsEventHandler
 from app.handler.acs_media_handler import ACSMediaHandler
 from dotenv import load_dotenv
@@ -9,7 +10,23 @@ from quart import Quart, request, websocket, Response
 
 load_dotenv()
 
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
 app = Quart(__name__)
+
+# Load required environment variables into app.config
+app.config["ACS_CONNECTION_STRING"] = os.environ.get("ACS_CONNECTION_STRING")
+app.config["AZURE_VOICE_LIVE_ENDPOINT"] = os.environ.get("AZURE_VOICE_LIVE_ENDPOINT")
+app.config["VOICE_LIVE_MODEL"] = os.environ.get("VOICE_LIVE_MODEL")
+app.config["AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID"] = os.environ.get("AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID")
+app.config["VOICE_LIVE_API_KEY"] = os.environ.get("VOICE_LIVE_API_KEY")
 
 acs_handler = AcsEventHandler(app.config)
 
@@ -77,7 +94,11 @@ async def web_ws():
     try:
         while True:
             msg = await websocket.receive()
-            await handler.web_to_voicelive(msg)
+            if isinstance(msg, (bytes, bytearray)):
+                await handler.web_to_voicelive(msg)
+            else:
+                # Assume text message, route to handler
+                await handler.handle_websocket_message(msg)
     except Exception:
         logger.exception("Web WebSocket connection closed")
 
