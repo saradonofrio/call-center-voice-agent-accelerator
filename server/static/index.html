@@ -150,34 +150,44 @@
     }
 
     async function startMicrophone() {
-      mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      });
-      source = audioContext.createMediaStreamSource(mediaStream);
+      console.log("startMicrophone() called");
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+        console.log("Microphone access granted, creating audio nodes...");
+        source = audioContext.createMediaStreamSource(mediaStream);
 
-      // Create an AudioWorkletNode for microphone capture. It has 1 input and 0 outputs.
-      micWorkletNode = new AudioWorkletNode(audioContext, 'mic-processor', {
-        numberOfInputs: 1,
-        numberOfOutputs: 0,
-        channelCount: 1
-      });
+        // Create an AudioWorkletNode for microphone capture. It has 1 input and 0 outputs.
+        micWorkletNode = new AudioWorkletNode(audioContext, 'mic-processor', {
+          numberOfInputs: 1,
+          numberOfOutputs: 0,
+          channelCount: 1
+        });
+        console.log("Audio worklet node created");
 
-      // Receive Float32 chunks from the worklet, convert to Int16 and forward to websocket
-      micWorkletNode.port.onmessage = (e) => {
-        const float32 = e.data && e.data.input;
-        if (!float32) return;
-        const pcm = float32ToInt16(float32);
-        if (socket?.readyState === WebSocket.OPEN) {
-          socket.send(pcm.buffer);
-        }
-      };
+        // Receive Float32 chunks from the worklet, convert to Int16 and forward to websocket
+        micWorkletNode.port.onmessage = (e) => {
+          const float32 = e.data && e.data.input;
+          if (!float32) return;
+          const pcm = float32ToInt16(float32);
+          if (socket?.readyState === WebSocket.OPEN) {
+            socket.send(pcm.buffer);
+          } else {
+            console.warn("Cannot send audio: WebSocket not open, state:", socket?.readyState);
+          }
+        };
 
-      // Connect the media source to the worklet (no output so it won't play back locally)
-      source.connect(micWorkletNode);
+        // Connect the media source to the worklet (no output so it won't play back locally)
+        source.connect(micWorkletNode);
+        console.log("Microphone successfully started and connected");
+      } catch (error) {
+        console.error("Error starting microphone:", error);
+      }
     }
 
     function stopMicrophone() {
@@ -197,19 +207,25 @@
     }
 
     function stopStreaming() {
+        console.log("Stopping streaming...");
         stopPlayback();
+        stopMicrophone();
         if (socket && socket.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({ Kind: "StopAudio" }));
+          socket.close();
         }
-        socket.close();
+        isMicActive = false;
+        document.getElementById("micBtn").classList.remove("active");
       }
 
     function sendTextMessage() {
       const input = document.getElementById("chatInput");
       const text = input.value.trim();
+      if (!text) return;
+      
       if (!socket || socket.readyState !== WebSocket.OPEN) {
         console.log("WebSocket not open, starting streaming...");
-        startStreaming();
+        startStreaming(false); // false = don't start microphone
         socket.onopen = () => {
           console.log("WebSocket opened, sending text:", text);
           appendMessage("user", text);
@@ -258,19 +274,46 @@
     }
 
     function toggleMic() {
+      console.log("toggleMic() called, current isMicActive:", isMicActive);
+      console.log("WebSocket state:", socket?.readyState, "(CONNECTING=0, OPEN=1, CLOSING=2, CLOSED=3)");
+      
       if (!isMicActive) {
-        startStreaming();
+        // Check if WebSocket is already open
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+          console.log("Starting streaming with microphone...");
+          startStreaming(true); // true = start microphone
+        } else {
+          console.log("WebSocket already open, just starting microphone...");
+          console.log("AudioContext state before resume:", audioContext.state);
+          // Resume audio context and start microphone
+          audioContext.resume().then(() => {
+            console.log("AudioContext resumed, state:", audioContext.state);
+            startMicrophone();
+          }).catch(err => {
+            console.error("Error resuming audioContext:", err);
+          });
+        }
         isMicActive = true;
         document.getElementById("micBtn").classList.add("active");
       } else {
-        stopStreaming();
+        console.log("Stopping microphone...");
+        stopMicrophone();
         isMicActive = false;
         document.getElementById("micBtn").classList.remove("active");
       }
     }
     
 
-    function startStreaming() {
+    function startStreaming(enableMicrophone = false) {
+      // Prevent creating multiple WebSocket connections
+      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+        console.log("WebSocket already open or connecting, skipping startStreaming");
+        if (enableMicrophone && !isMicActive) {
+          startMicrophone();
+        }
+        return;
+      }
+      
       let wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
       let wsHost = window.location.host; 
       socket = new WebSocket(`${wsProtocol}://${wsHost}/web/ws`);
@@ -280,7 +323,10 @@
       socket.onopen = async () => {
         console.log("WebSocket opened");
         await audioContext.resume();
-        await startMicrophone();
+        if (enableMicrophone) {
+          console.log("Starting microphone (enableMicrophone=true)");
+          await startMicrophone();
+        }
         document.getElementById("stopBtn").disabled = false;
       };
       socket.onmessage = async (event) => {

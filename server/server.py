@@ -91,12 +91,16 @@ async def web_ws():
     handler = ACSMediaHandler(app.config)
     await handler.init_incoming_websocket(websocket, is_raw_audio=True)
     asyncio.create_task(handler.connect())
+    message_count = 0
     try:
         while True:
             msg = await websocket.receive()
+            message_count += 1
             if isinstance(msg, (bytes, bytearray)):
+                logger.debug("Received audio data, message #%d, size: %d bytes", message_count, len(msg))
                 await handler.web_to_voicelive(msg)
             else:
+                logger.info("Received text message #%d: %s", message_count, msg[:100] if len(msg) > 100 else msg)
                 # Assume text message, route to handler
                 await handler.handle_websocket_message(msg)
     except Exception:
