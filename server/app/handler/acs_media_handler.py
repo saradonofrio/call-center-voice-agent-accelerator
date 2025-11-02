@@ -64,7 +64,7 @@ class ACSMediaHandler:
         except Exception:
             logger.exception("[ACSMediaHandler] Error handling frontend websocket message")
     async def text_to_voicelive(self, text: str):
-        """Queues text data to be sent to Voice Live API as input_text."""
+        """Queues text data to be sent to Voice Live API as input_text and commits it."""
         payload = {
             "type": "conversation.item.create",
             "input": {
@@ -73,6 +73,8 @@ class ACSMediaHandler:
             }
         }
         await self.send_queue.put(json.dumps(payload))
+        # Send commit event immediately after
+        await self.send_queue.put(json.dumps({"type": "response.create"}))
 
     """Manages audio streaming between client and Azure Voice Live API."""
 
