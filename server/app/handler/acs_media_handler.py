@@ -5,6 +5,7 @@ import base64
 from datetime import datetime
 import json
 import logging
+import os
 import uuid
 
 from azure.identity.aio import ManagedIdentityCredential
@@ -18,15 +19,33 @@ def session_config(azure_search_config=None):
     """Returns the default session configuration for Voice Live."""
     today = datetime.now().strftime("%d %B %Y")
     
-    # NOTE: Azure Voice Live API might not support data_sources yet
-    # If you're getting errors or no responses, Azure Search integration may not be available
-    # For now, we disable it to ensure the bot works
+    logger.info("Building session config with azure_search_config: %s", 
+                "enabled" if azure_search_config else "disabled")
+    
+    base_instructions = (
+        f"Sei un assistente virtuale farmacista che risponde in modo naturale e con frasi brevi. "
+        f"Parla in italiano, a meno che le domande non arrivino in altra lingua. "
+        f"Ricordati che oggi è il giorno {today}, usa questa data come riferimento temporale per rispondere alle domande. "
+        f"Parla solo di argomenti inerenti la farmacia. "
+        f"Inizia la conversazione chiedendo Come posso esserti utile?"
+    )
+    
+    # Add grounding instructions if Azure Search is enabled
+    if azure_search_config:
+        logger.info("Adding grounding instructions for index: %s", 
+                   azure_search_config.get("index_name"))
+        base_instructions += (
+            "\n\nIMPORTANTE: Quando l'utente fa domande su farmaci, orari, servizi o informazioni della farmacia, "
+            "usa SEMPRE la funzione search_pharmacy_database per cercare informazioni accurate. "
+            "Basa le tue risposte sui risultati della ricerca. "
+            "Se la ricerca non trova risultati rilevanti, dillo chiaramente all'utente."
+        )
     
     config = {
         "type": "session.update",
         "session": {
             "modalities": ["text", "audio"],
-            "instructions": f"Sei un assistente virtuale farmacista che risponde in modo naturale e con frasi brevi. Parla in italiano, a meno che le domande non arrivino in altra lingua. Ricordati che oggi è il giorno {today}, usa questa data come riferimento temporale per rispondere alle domande. Parla solo di argomenti inerenti la farmacia. Inizia la conversazione chiedendo Come posso esserti utile?",
+            "instructions": base_instructions,
             "turn_detection": {
                 "type": "azure_semantic_vad",
                 "threshold": 0.3,
@@ -49,11 +68,44 @@ def session_config(azure_search_config=None):
         },
     }
     
-    # TODO: Azure Search integration currently disabled
-    # Azure Voice Live API may not support data_sources parameter yet
-    # Monitor Azure Voice Live API updates for grounding support
+    # Add Azure Search function if configured
     if azure_search_config:
-        logger.warning("Azure AI Search config provided but integration is currently disabled - Voice Live API may not support it yet")
+        logger.info("Enabling Azure AI Search function with index: %s", azure_search_config["index_name"])
+        
+        # Define the search function that Voice Live API can call
+        search_function = {
+            "type": "function",
+            "name": "search_pharmacy_database",
+            "description": "Cerca informazioni nel database della farmacia su farmaci, orari, servizi, prezzi e altre informazioni. Usa questa funzione per rispondere a domande specifiche dell'utente.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "La query di ricerca basata sulla domanda dell'utente. Esempio: 'paracetamolo', 'orari apertura', 'test covid'"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+        
+        config["session"]["tools"] = [search_function]
+        config["session"]["tool_choice"] = "auto"  # Let the model decide when to call the function
+        
+        logger.info("Added tools to session config. Number of tools: %d", len(config["session"]["tools"]))
+        logger.info("Tool name: %s", search_function.get("name"))
+        logger.info("Tool type: %s", search_function.get("type"))
+        logger.info("Tool choice: %s", config["session"]["tool_choice"])
+        
+        # Log the full tool definition
+        try:
+            tools_json = json.dumps(config["session"]["tools"], indent=2)
+            logger.info("Full tools definition:\n%s", tools_json)
+        except Exception as e:
+            logger.error("Failed to serialize tools: %s", e)
+            logger.error("Tools object: %s", config["session"]["tools"])
+    else:
+        logger.info("No tools added to session config - Azure Search not configured")
     
     return config
 
@@ -67,12 +119,17 @@ class ACSMediaHandler:
         self.client_id = config.get("AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID")
         self.api_key = config.get("VOICE_LIVE_API_KEY")
         
-        # Azure AI Search configuration (optional)
+        # Azure AI Search configuration - only enable if endpoint and index are provided
         self.azure_search_config = None
-        if config.get("AZURE_SEARCH_ENDPOINT") and config.get("AZURE_SEARCH_INDEX"):
+        search_endpoint = config.get("AZURE_SEARCH_ENDPOINT")
+        search_index = config.get("AZURE_SEARCH_INDEX")
+        
+        logger.info("Azure Search config - Endpoint: %s, Index: %s", search_endpoint, search_index)
+        
+        if search_endpoint and search_index:
             self.azure_search_config = {
-                "endpoint": config["AZURE_SEARCH_ENDPOINT"],
-                "index_name": config["AZURE_SEARCH_INDEX"],
+                "endpoint": search_endpoint,
+                "index_name": search_index,
                 "api_key": config.get("AZURE_SEARCH_API_KEY"),
                 "auth_type": "api_key" if config.get("AZURE_SEARCH_API_KEY") else "system_assigned_managed_identity",
                 "semantic_configuration": config.get("AZURE_SEARCH_SEMANTIC_CONFIG"),
@@ -80,12 +137,16 @@ class ACSMediaHandler:
                 "strictness": config.get("AZURE_SEARCH_STRICTNESS", 3)
             }
             logger.info("Azure AI Search enabled with index: %s", self.azure_search_config["index_name"])
-        
+        else:
+            logger.warning("Azure AI Search NOT enabled - missing endpoint or index configuration")
+
+
         self.send_queue = asyncio.Queue()
         self.ws = None
         self.send_task = None
         self.incoming_websocket = None
         self.is_raw_audio = True
+        self.response_in_progress = False  # Track if a response is being generated
 
     def _generate_guid(self):
         return str(uuid.uuid4())
@@ -121,9 +182,25 @@ class ACSMediaHandler:
 
         # Send session configuration with Azure Search if enabled
         session_cfg = session_config(self.azure_search_config)
-        logger.info("Sending session config: %s", json.dumps(session_cfg, indent=2))
+        logger.info("Session config type: %s", type(session_cfg))
+        logger.info("Session config keys: %s", list(session_cfg.keys()) if isinstance(session_cfg, dict) else "NOT A DICT")
+        
+        # Check if tools are in the session
+        if "session" in session_cfg and "tools" in session_cfg["session"]:
+            logger.info("Tools found in session config! Number of tools: %d", len(session_cfg["session"]["tools"]))
+        else:
+            logger.warning("NO TOOLS in session config!")
+        
+        try:
+            config_json = json.dumps(session_cfg, indent=2)
+            logger.info("Full session config being sent:\n%s", config_json)
+        except Exception as e:
+            logger.error("Failed to serialize session config: %s", e)
+            logger.error("Session config value: %s", session_cfg)
+            raise
+            
         await self._send_json(session_cfg)
-        await self._send_json({"type": "response.create"})
+        # Don't send response.create here - let the first user input trigger it
 
         receiver_task = asyncio.create_task(self._receiver_loop())
         receiver_task.add_done_callback(self._handle_task_exception)
@@ -170,6 +247,10 @@ class ACSMediaHandler:
                         session_id = event.get("session", {}).get("id")
                         logger.info("[ACSMediaHandler] Session ID: %s", session_id)
 
+                    case "response.created":
+                        logger.info("Response created - setting response_in_progress = True")
+                        self.response_in_progress = True
+
                     case "input_audio_buffer.cleared":
                         logger.info("Input Audio Buffer Cleared Message")
 
@@ -199,6 +280,7 @@ class ACSMediaHandler:
                     case "response.done":
                         response = event.get("response", {})
                         logger.info("Response Done: Id=%s", response.get("id"))
+                        self.response_in_progress = False  # Response completed
                         if response.get("status_details"):
                             logger.info(
                                 "Status Details: %s",
@@ -243,6 +325,30 @@ class ACSMediaHandler:
                                             "Kind": "BotResponse",
                                             "Text": text
                                         }))
+
+                    case "response.function_call_arguments.done":
+                        # Voice Live API is calling our search function
+                        call_id = event.get("call_id")
+                        function_name = event.get("name")
+                        arguments_str = event.get("arguments")
+                        
+                        logger.info("Function call: %s with args: %s", function_name, arguments_str)
+                        
+                        if function_name == "search_pharmacy_database":
+                            try:
+                                arguments = json.loads(arguments_str)
+                                query = arguments.get("query", "")
+                                
+                                # Execute the search
+                                search_results = await self._execute_azure_search(query)
+                                
+                                # Send results back to Voice Live API
+                                # The API will automatically continue the response after receiving the result
+                                await self._send_function_result(call_id, search_results)
+                                
+                            except Exception as e:
+                                logger.error("Error executing search function: %s", e)
+                                await self._send_function_error(call_id, str(e))
 
                     case "error":
                         logger.error("Voice Live Error: %s", json.dumps(event, indent=2))
@@ -356,3 +462,86 @@ class ACSMediaHandler:
             return
         audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
         await self.audio_to_voicelive(audio_b64)
+
+    async def _execute_azure_search(self, query: str) -> str:
+        """Execute Azure AI Search and return formatted results."""
+        if not self.azure_search_config:
+            return "Ricerca non disponibile al momento."
+        
+        try:
+            from azure.search.documents.aio import SearchClient
+            from azure.core.credentials import AzureKeyCredential
+            
+            logger.info("Executing Azure Search for query: %s", query)
+            
+            # Create search client
+            credential = AzureKeyCredential(self.azure_search_config["api_key"])
+            async with SearchClient(
+                endpoint=self.azure_search_config["endpoint"],
+                index_name=self.azure_search_config["index_name"],
+                credential=credential
+            ) as search_client:
+                
+                # Execute search
+                results = await search_client.search(
+                    search_text=query,
+                    top=self.azure_search_config.get("top_n", 5)
+                )
+                
+                # Format results
+                formatted_results = []
+                result_count = 0
+                async for result in results:
+                    result_count += 1
+                    title = result.get("title", "")
+                    content = result.get("content", "")
+                    score = result.get("@search.score", 0)
+                    
+                    formatted_results.append(
+                        f"[{result_count}] {title}\n{content}\n(Rilevanza: {score:.2f})"
+                    )
+                
+                if formatted_results:
+                    logger.info("Found %d results for query: %s", result_count, query)
+                    return "Informazioni trovate nel database della farmacia:\n\n" + "\n\n".join(formatted_results)
+                else:
+                    logger.info("No results found for query: %s", query)
+                    return "Non ho trovato informazioni specifiche su questo argomento nel database della farmacia."
+                    
+        except Exception as e:
+            logger.error("Error executing Azure Search: %s", e)
+            return f"Si è verificato un errore durante la ricerca: {str(e)}"
+    
+    async def _send_function_result(self, call_id: str, result: str):
+        """Send function call result back to Voice Live API."""
+        message = {
+            "type": "conversation.item.create",
+            "item": {
+                "type": "function_call_output",
+                "call_id": call_id,
+                "output": result
+            }
+        }
+        logger.info("Sending function result for call_id: %s", call_id)
+        await self.send_queue.put(json.dumps(message))
+        
+        # After sending function output, we need to trigger a new response
+        logger.info("Triggering response.create after function result")
+        await self.send_queue.put(json.dumps({"type": "response.create"}))
+    
+    async def _send_function_error(self, call_id: str, error: str):
+        """Send function call error back to Voice Live API."""
+        message = {
+            "type": "conversation.item.create",
+            "item": {
+                "type": "function_call_output",
+                "call_id": call_id,
+                "output": f"Errore durante la ricerca: {error}"
+            }
+        }
+        logger.error("Sending function error for call_id: %s - %s", call_id, error)
+        await self.send_queue.put(json.dumps(message))
+        
+        # After sending function error, we need to trigger a new response
+        logger.info("Triggering response.create after function error")
+        await self.send_queue.put(json.dumps({"type": "response.create"}))

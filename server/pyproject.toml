@@ -16,10 +16,11 @@ dependencies = [
     "azure-eventgrid>=4.22.0",
     "azure-identity>=1.23.0",
     "azure-communication-callautomation>=1.4.0",
+    "azure-search-documents>=11.4.0",
     "openai[realtime]>=1.93.0",
     "h2>=4.3.0"
 ]
 
 [tool.uv]
 # Define the virtual environment location for uv
-project_environment = ".venv"
+# Note: project_environment is deprecated, use UV_PROJECT_ENVIRONMENT env var instead
