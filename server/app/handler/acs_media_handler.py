@@ -14,14 +14,19 @@ from websockets.typing import Data
 logger = logging.getLogger(__name__)
 
 
-def session_config():
+def session_config(azure_search_config=None):
     """Returns the default session configuration for Voice Live."""
     today = datetime.now().strftime("%d %B %Y")
-    return {
+    
+    # NOTE: Azure Voice Live API might not support data_sources yet
+    # If you're getting errors or no responses, Azure Search integration may not be available
+    # For now, we disable it to ensure the bot works
+    
+    config = {
         "type": "session.update",
         "session": {
             "modalities": ["text", "audio"],
-            "instructions": f"Sei un assistente virtuale farmacista che risponde in modo naturale e con frasi brevi e che non parla di altri argomenti. Parla in italiano, a meno che le domande non arrivino in altra lingua. Ricordati che oggi è il giorno {today}, usa questa data come riferimento temporale per rispondere alle domande. Parla solo di argomenti inerenti la farmacia. Inizia la conversazione chiedendo Come posso esserti utile?",
+            "instructions": f"Sei un assistente virtuale farmacista che risponde in modo naturale e con frasi brevi. Parla in italiano, a meno che le domande non arrivino in altra lingua. Ricordati che oggi è il giorno {today}, usa questa data come riferimento temporale per rispondere alle domande. Parla solo di argomenti inerenti la farmacia. Inizia la conversazione chiedendo Come posso esserti utile?",
             "turn_detection": {
                 "type": "azure_semantic_vad",
                 "threshold": 0.3,
@@ -43,6 +48,14 @@ def session_config():
             },
         },
     }
+    
+    # TODO: Azure Search integration currently disabled
+    # Azure Voice Live API may not support data_sources parameter yet
+    # Monitor Azure Voice Live API updates for grounding support
+    if azure_search_config:
+        logger.warning("Azure AI Search config provided but integration is currently disabled - Voice Live API may not support it yet")
+    
+    return config
 
 
 class ACSMediaHandler:
@@ -51,7 +64,23 @@ class ACSMediaHandler:
     def __init__(self, config):
         self.endpoint = config["AZURE_VOICE_LIVE_ENDPOINT"]
         self.model = config["VOICE_LIVE_MODEL"]
-        self.client_id = config["AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID"]
+        self.client_id = config.get("AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID")
+        self.api_key = config.get("VOICE_LIVE_API_KEY")
+        
+        # Azure AI Search configuration (optional)
+        self.azure_search_config = None
+        if config.get("AZURE_SEARCH_ENDPOINT") and config.get("AZURE_SEARCH_INDEX"):
+            self.azure_search_config = {
+                "endpoint": config["AZURE_SEARCH_ENDPOINT"],
+                "index_name": config["AZURE_SEARCH_INDEX"],
+                "api_key": config.get("AZURE_SEARCH_API_KEY"),
+                "auth_type": "api_key" if config.get("AZURE_SEARCH_API_KEY") else "system_assigned_managed_identity",
+                "semantic_configuration": config.get("AZURE_SEARCH_SEMANTIC_CONFIG"),
+                "top_n": config.get("AZURE_SEARCH_TOP_N", 5),
+                "strictness": config.get("AZURE_SEARCH_STRICTNESS", 3)
+            }
+            logger.info("Azure AI Search enabled with index: %s", self.azure_search_config["index_name"])
+        
         self.send_queue = asyncio.Queue()
         self.ws = None
         self.send_task = None
@@ -90,7 +119,10 @@ class ACSMediaHandler:
 
         self.ws = await ws_connect(url, additional_headers=headers)
 
-        await self._send_json(session_config())
+        # Send session configuration with Azure Search if enabled
+        session_cfg = session_config(self.azure_search_config)
+        logger.info("Sending session config: %s", json.dumps(session_cfg, indent=2))
+        await self._send_json(session_cfg)
         await self._send_json({"type": "response.create"})
 
         receiver_task = asyncio.create_task(self._receiver_loop())
@@ -213,7 +245,12 @@ class ACSMediaHandler:
                                         }))
 
                     case "error":
-                        logger.error("Voice Live Error: %s", event)
+                        logger.error("Voice Live Error: %s", json.dumps(event, indent=2))
+                        # Send error notification to client if needed
+                        error_msg = event.get("error", {})
+                        logger.error("Error details - Code: %s, Message: %s", 
+                                   error_msg.get("code"), 
+                                   error_msg.get("message"))
 
                     case _:
                         logger.debug(

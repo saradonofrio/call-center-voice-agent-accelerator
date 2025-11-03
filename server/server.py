@@ -28,6 +28,14 @@ app.config["VOICE_LIVE_MODEL"] = os.environ.get("VOICE_LIVE_MODEL")
 app.config["AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID"] = os.environ.get("AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID")
 app.config["VOICE_LIVE_API_KEY"] = os.environ.get("VOICE_LIVE_API_KEY")
 
+# Azure AI Search configuration (optional - for grounding responses on your data)
+app.config["AZURE_SEARCH_ENDPOINT"] = os.environ.get("AZURE_SEARCH_ENDPOINT")
+app.config["AZURE_SEARCH_INDEX"] = os.environ.get("AZURE_SEARCH_INDEX")
+app.config["AZURE_SEARCH_API_KEY"] = os.environ.get("AZURE_SEARCH_API_KEY")
+app.config["AZURE_SEARCH_SEMANTIC_CONFIG"] = os.environ.get("AZURE_SEARCH_SEMANTIC_CONFIG")
+app.config["AZURE_SEARCH_TOP_N"] = int(os.environ.get("AZURE_SEARCH_TOP_N", "5"))
+app.config["AZURE_SEARCH_STRICTNESS"] = int(os.environ.get("AZURE_SEARCH_STRICTNESS", "3"))
+
 acs_handler = AcsEventHandler(app.config)
 
 @app.route("/acs/incomingcall", methods=["POST"])
