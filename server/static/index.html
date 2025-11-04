@@ -84,7 +84,7 @@
   <button id="configBtn" onclick="window.location.href='/static/config.html'" title="Configure Grounding Documents">
     ⚙️
   </button>
-  <div class="subtitle">🎙️Parla con il BOT della Farmacia sempre disponibile 7x24.</div>
+  <div class="subtitle">🎙️Parla con il BOT della Farmacia, sempre disponibile 7x24.</div>
 
   <div class="controls">
       <div id="chatContainer">
@@ -152,7 +152,6 @@
     }
 
     async function startMicrophone() {
-      console.log("startMicrophone() called");
       try {
         mediaStream = await navigator.mediaDevices.getUserMedia({
           audio: {
@@ -161,7 +160,6 @@
             autoGainControl: true
           }
         });
-        console.log("Microphone access granted, creating audio nodes...");
         source = audioContext.createMediaStreamSource(mediaStream);
 
         // Create an AudioWorkletNode for microphone capture. It has 1 input and 0 outputs.
@@ -170,7 +168,6 @@
           numberOfOutputs: 0,
           channelCount: 1
         });
-        console.log("Audio worklet node created");
 
         // Receive Float32 chunks from the worklet, convert to Int16 and forward to websocket
         micWorkletNode.port.onmessage = (e) => {
@@ -186,7 +183,6 @@
 
         // Connect the media source to the worklet (no output so it won't play back locally)
         source.connect(micWorkletNode);
-        console.log("Microphone successfully started and connected");
       } catch (error) {
         console.error("Error starting microphone:", error);
       }
@@ -209,7 +205,6 @@
     }
 
     function stopStreaming() {
-        console.log("Stopping streaming...");
         stopPlayback();
         stopMicrophone();
         if (socket && socket.readyState === WebSocket.OPEN) {
@@ -226,10 +221,8 @@
       if (!text) return;
       
       if (!socket || socket.readyState !== WebSocket.OPEN) {
-        console.log("WebSocket not open, starting streaming...");
         startStreaming(false); // false = don't start microphone
         socket.onopen = () => {
-          console.log("WebSocket opened, sending text:", text);
           appendMessage("user", text);
           const payload = {
             type: "conversation.item.create",
@@ -238,12 +231,10 @@
               text: text
             }
           };
-          console.log("Sending payload:", JSON.stringify(payload, null, 2));
           socket.send(JSON.stringify(payload));
           input.value = "";
         };
       } else if (text) {
-        console.log("Sending text via existing socket:", text);
         appendMessage("user", text);
         const payload = {
           type: "conversation.item.create",
@@ -252,7 +243,6 @@
             text: text
           }
         };
-        console.log("Sending payload:", JSON.stringify(payload, null, 2));
         socket.send(JSON.stringify(payload));
         input.value = "";
       }
@@ -276,20 +266,13 @@
     }
 
     function toggleMic() {
-      console.log("toggleMic() called, current isMicActive:", isMicActive);
-      console.log("WebSocket state:", socket?.readyState, "(CONNECTING=0, OPEN=1, CLOSING=2, CLOSED=3)");
-      
       if (!isMicActive) {
         // Check if WebSocket is already open
         if (!socket || socket.readyState !== WebSocket.OPEN) {
-          console.log("Starting streaming with microphone...");
           startStreaming(true); // true = start microphone
         } else {
-          console.log("WebSocket already open, just starting microphone...");
-          console.log("AudioContext state before resume:", audioContext.state);
           // Resume audio context and start microphone
           audioContext.resume().then(() => {
-            console.log("AudioContext resumed, state:", audioContext.state);
             startMicrophone();
           }).catch(err => {
             console.error("Error resuming audioContext:", err);
@@ -298,7 +281,6 @@
         isMicActive = true;
         document.getElementById("micBtn").classList.add("active");
       } else {
-        console.log("Stopping microphone...");
         stopMicrophone();
         isMicActive = false;
         document.getElementById("micBtn").classList.remove("active");
@@ -309,7 +291,6 @@
     function startStreaming(enableMicrophone = false) {
       // Prevent creating multiple WebSocket connections
       if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
-        console.log("WebSocket already open or connecting, skipping startStreaming");
         if (enableMicrophone && !isMicActive) {
           startMicrophone();
         }
@@ -319,14 +300,11 @@
       let wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
       let wsHost = window.location.host; 
       socket = new WebSocket(`${wsProtocol}://${wsHost}/web/ws`);
-      console.log("Connecting to WebSocket:", socket.url);
       socket.binaryType = "arraybuffer";
 
       socket.onopen = async () => {
-        console.log("WebSocket opened");
         await audioContext.resume();
         if (enableMicrophone) {
-          console.log("Starting microphone (enableMicrophone=true)");
           await startMicrophone();
         }
         document.getElementById("stopBtn").disabled = false;
@@ -334,39 +312,30 @@
       socket.onmessage = async (event) => {
         try {
           if (typeof event.data === "string") {
-            console.log("Received text message from server:", event.data);
             const msg = JSON.parse(event.data);
-            console.log("Parsed message:", msg);
             if (msg.Kind === "StopAudio") {
-              console.log("StopAudio received");
               stopPlayback();
             }
             // User voice transcription (from microphone)
             if (msg.Kind === "UserVoiceTranscription") {
-              console.log("User voice transcription received:", msg.Text);
               appendMessage("user", msg.Text);
             }
             // Bot voice response transcription (audio response from bot)
             if (msg.Kind === "BotVoiceTranscription") {
-              console.log("Bot voice transcription received:", msg.Text);
               appendMessage("bot", msg.Text);
             }
             // Bot text response (for text-only chat)
             if (msg.Kind === "BotResponse") {
-              console.log("BotResponse received:", msg.Text);
               appendMessage("bot", msg.Text);
             }
             // Legacy support (backwards compatibility)
             if (msg.Kind === "Transcription") {
-              console.log("Legacy Transcription received:", msg.Text);
               appendMessage("user", msg.Text);
             }
             if (msg.Kind === "UserTranscription") {
-              console.log("Legacy UserTranscription received:", msg.Text);
               appendMessage("bot", msg.Text);
             }
           } else if (event.data instanceof ArrayBuffer) {
-            console.log("Received audio data, size:", event.data.byteLength);
             if (isMicActive) {
               try {
                 await playAudio(event.data);
@@ -381,7 +350,6 @@
       }
 
       socket.onclose = () => {
-        console.log("WebSocket closed");
         stopMicrophone();
         document.getElementById("stopBtn").disabled = true;
       };
