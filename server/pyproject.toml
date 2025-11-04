@@ -18,7 +18,10 @@ dependencies = [
     "azure-communication-callautomation>=1.4.0",
     "azure-search-documents>=11.4.0",
     "openai[realtime]>=1.93.0",
-    "h2>=4.3.0"
+    "h2>=4.3.0",
+    "azure-storage-blob>=12.19.0",
+    "pypdf>=3.17.0",
+    "python-docx>=1.1.0"
 ]
 
 [tool.uv]

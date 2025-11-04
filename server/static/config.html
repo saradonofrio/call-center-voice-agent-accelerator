@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Configurazione Grounding - Farmacia Pepe 24</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    .header {
+      background: #0078d4;
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    .content {
+      padding: 30px;
+    }
+
+    .section {
+      margin-bottom: 30px;
+    }
+
+    .section h2 {
+      font-size: 20px;
+      color: #333;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-icon {
+      font-size: 24px;
+    }
+
+    .upload-area {
+      border: 2px dashed #0078d4;
+      border-radius: 8px;
+      padding: 40px;
+      text-align: center;
+      background: #f8f9fa;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .upload-area:hover {
+      background: #e9ecef;
+      border-color: #005ea0;
+    }
+
+    .upload-area.dragover {
+      background: #d4edff;
+      border-color: #0078d4;
+      border-style: solid;
+    }
+
+    .upload-icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+
+    .upload-text {
+      font-size: 16px;
+      color: #666;
+      margin-bottom: 10px;
+    }
+
+    .upload-hint {
+      font-size: 12px;
+      color: #999;
+    }
+
+    #fileInput {
+      display: none;
+    }
+
+    .file-list {
+      margin-top: 20px;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      transition: all 0.2s ease;
+    }
+
+    .file-item:hover {
+      background: #e9ecef;
+    }
+
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+    }
+
+    .file-icon {
+      font-size: 24px;
+    }
+
+    .file-details {
+      flex: 1;
+    }
+
+    .file-name {
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 3px;
+    }
+
+    .file-size {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .file-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-badge.success {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-badge.pending {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .status-badge.error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: #0078d4;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #005ea0;
+    }
+
+    .btn-danger {
+      background: #e81123;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #c50e1f;
+    }
+
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #5a6268;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-small {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 30px;
+      justify-content: space-between;
+    }
+
+    .back-btn {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: white;
+      color: #0078d4;
+      border: 2px solid #0078d4;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      z-index: 100;
+    }
+
+    .back-btn:hover {
+      background: #0078d4;
+      color: white;
+    }
+
+    .info-box {
+      background: #e7f3ff;
+      border-left: 4px solid #0078d4;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+    }
+
+    .info-box p {
+      color: #004085;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background: #e9ecef;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: #0078d4;
+      transition: width 0.3s ease;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+    }
+
+    .empty-state-icon {
+      font-size: 64px;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+  <button class="back-btn" onclick="window.location.href='/'">← Torna alla Chat</button>
+
+  <div class="container">
+    <div class="header">
+      <h1>⚙️ Configurazione Documenti Grounding</h1>
+      <p>Carica e gestisci i documenti per migliorare le risposte del bot</p>
+    </div>
+
+    <div class="content">
+      <div class="info-box">
+        <p>
+          📄 Carica documenti PDF, DOCX o TXT contenenti informazioni sulla farmacia (orari, servizi, farmaci, ecc.). 
+          I documenti verranno indicizzati in Azure AI Search per fornire risposte accurate e aggiornate.
+        </p>
+      </div>
+
+      <div class="section">
+        <h2>
+          <span class="section-icon">📤</span>
+          Carica Nuovi Documenti
+        </h2>
+        
+        <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+          <div class="upload-icon">📁</div>
+          <div class="upload-text">Clicca o trascina qui i file da caricare</div>
+          <div class="upload-hint">Formati supportati: PDF, DOCX, TXT (max 10MB)</div>
+        </div>
+        
+        <input type="file" id="fileInput" multiple accept=".pdf,.docx,.txt" />
+      </div>
+
+      <div class="section">
+        <h2>
+          <span class="section-icon">📋</span>
+          Documenti Caricati
+        </h2>
+        
+        <div class="file-list" id="fileList">
+          <div class="empty-state">
+            <div class="empty-state-icon">📂</div>
+            <p>Nessun documento caricato</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>
+          <span class="section-icon">📚</span>
+          Documenti Indicizzati
+        </h2>
+        
+        <div id="existingDocumentsList">
+          <p style="text-align: center; color: #999; padding: 20px;">Caricamento...</p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-secondary" onclick="refreshDocuments()">
+          🔄 Aggiorna Lista
+        </button>
+        <button class="btn btn-primary" id="uploadBtn" onclick="uploadDocuments()" disabled>
+          ☁️ Carica su Azure Search
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let selectedFiles = [];
+
+    // File input change handler
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+      handleFiles(e.target.files);
+    });
+
+    // Drag and drop handlers
+    const uploadArea = document.getElementById('uploadArea');
+    
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      handleFiles(e.dataTransfer.files);
+    });
+
+    function handleFiles(files) {
+      const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+      const maxSize = 10 * 1024 * 1024; // 10MB
+
+      Array.from(files).forEach(file => {
+        if (!validTypes.includes(file.type)) {
+          alert(`Formato non supportato: ${file.name}`);
+          return;
+        }
+        if (file.size > maxSize) {
+          alert(`File troppo grande: ${file.name} (max 10MB)`);
+          return;
+        }
+        
+        // Check if file already selected
+        if (!selectedFiles.find(f => f.name === file.name)) {
+          selectedFiles.push({
+            file: file,
+            status: 'pending',
+            progress: 0
+          });
+        }
+      });
+
+      renderFileList();
+      document.getElementById('uploadBtn').disabled = selectedFiles.length === 0;
+    }
+
+    function renderFileList() {
+      const fileList = document.getElementById('fileList');
+      
+      if (selectedFiles.length === 0) {
+        fileList.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">📂</div>
+            <p>Nessun documento caricato</p>
+          </div>
+        `;
+        return;
+      }
+
+      fileList.innerHTML = selectedFiles.map((item, index) => `
+        <div class="file-item">
+          <div class="file-info">
+            <div class="file-icon">📄</div>
+            <div class="file-details">
+              <div class="file-name">${item.file.name}</div>
+              <div class="file-size">${formatFileSize(item.file.size)}</div>
+              ${item.progress > 0 ? `
+                <div class="progress-bar">
+                  <div class="progress-fill" style="width: ${item.progress}%"></div>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+          <div class="file-status">
+            <span class="status-badge ${item.status}">
+              ${item.status === 'success' ? '✓ Caricato' : 
+                item.status === 'error' ? '✗ Errore' : 
+                item.progress > 0 ? `${item.progress}%` : 'In attesa'}
+            </span>
+            <button class="btn btn-danger btn-small" onclick="removeFile(${index})">
+              🗑️
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    }
+
+    function removeFile(index) {
+      selectedFiles.splice(index, 1);
+      renderFileList();
+      document.getElementById('uploadBtn').disabled = selectedFiles.length === 0;
+    }
+
+    async function uploadDocuments() {
+      const uploadBtn = document.getElementById('uploadBtn');
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = '⏳ Caricamento in corso...';
+
+      try {
+        // Create FormData with all pending files
+        const formData = new FormData();
+        const filesToUpload = selectedFiles.filter(f => f.status === 'pending');
+        
+        filesToUpload.forEach((item, index) => {
+          formData.append('files', item.file);
+        });
+
+        if (filesToUpload.length === 0) {
+          uploadBtn.textContent = '☁️ Carica su Azure Search';
+          uploadBtn.disabled = true;
+          return;
+        }
+
+        // Upload to backend API
+        const response = await fetch('/api/documents', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error(`Upload failed: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        // Update file statuses based on response
+        if (data.results) {
+          data.results.forEach(result => {
+            const item = selectedFiles.find(f => f.file.name === result.filename);
+            if (item) {
+              if (result.status === 'success') {
+                item.status = 'success';
+                item.progress = 100;
+              } else {
+                item.status = 'error';
+                item.error = result.error || 'Upload failed';
+              }
+            }
+          });
+        }
+
+        renderFileList();
+        
+        uploadBtn.textContent = '✓ Caricamento Completato';
+        
+        // Refresh document list
+        await loadExistingDocuments();
+        
+        setTimeout(() => {
+          uploadBtn.textContent = '☁️ Carica su Azure Search';
+          uploadBtn.disabled = selectedFiles.filter(f => f.status !== 'success').length === 0;
+        }, 2000);
+
+      } catch (error) {
+        console.error('Upload error:', error);
+        alert('Errore durante il caricamento: ' + error.message);
+        
+        uploadBtn.textContent = '☁️ Carica su Azure Search';
+        uploadBtn.disabled = false;
+      }
+    }
+
+    async function refreshDocuments() {
+      try {
+        await loadExistingDocuments();
+        alert('Lista documenti aggiornata!');
+      } catch (error) {
+        console.error('Error refreshing documents:', error);
+        alert('Errore durante il caricamento della lista documenti');
+      }
+    }
+
+    async function loadExistingDocuments() {
+      try {
+        const response = await fetch('/api/documents');
+        
+        if (!response.ok) {
+          throw new Error(`Failed to load documents: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        // Update the existing documents section
+        const existingList = document.getElementById('existingDocumentsList');
+        
+        if (!data.documents || data.documents.length === 0) {
+          existingList.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">Nessun documento caricato</p>';
+          return;
+        }
+
+        existingList.innerHTML = data.documents.map(doc => `
+          <div class="file-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #e1e1e1; border-radius: 6px; margin-bottom: 8px;">
+            <div style="flex: 1;">
+              <div style="font-weight: 500; color: #333;">📄 ${escapeHtml(doc.filename)}</div>
+              <div style="font-size: 12px; color: #666; margin-top: 4px;">ID: ${escapeHtml(doc.id)}</div>
+            </div>
+            <button 
+              onclick="deleteDocument('${escapeHtml(doc.id)}')" 
+              style="background: #e81123; color: white; border: none; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-size: 14px;"
+              title="Elimina documento">
+              🗑️ Elimina
+            </button>
+          </div>
+        `).join('');
+
+      } catch (error) {
+        console.error('Error loading documents:', error);
+      }
+    }
+
+    async function deleteDocument(documentId) {
+      if (!confirm('Sei sicuro di voler eliminare questo documento?')) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/documents/${encodeURIComponent(documentId)}`, {
+          method: 'DELETE'
+        });
+
+        if (!response.ok) {
+          throw new Error(`Delete failed: ${response.statusText}`);
+        }
+
+        alert('Documento eliminato con successo!');
+        await loadExistingDocuments();
+
+      } catch (error) {
+        console.error('Delete error:', error);
+        alert('Errore durante l\'eliminazione: ' + error.message);
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Load existing documents on page load
+    window.addEventListener('load', () => {
+      loadExistingDocuments();
+    });
+  </script>
+</body>
+</html>
