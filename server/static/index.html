@@ -4,7 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Voice Live Agent Demo</title>
+  
+  <!-- ============================================================================
+       INITIAL PAGE STYLES
+       Basic styling for the page container and main elements
+       ============================================================================ -->
   <style>
+    /* Main page container styling */
     body {
       margin: 0;
       padding: 0;
@@ -19,17 +25,20 @@
       text-align: center;
     }
 
+    /* Page title styling */
     h1 {
       font-size: 2rem;
       margin-bottom: 1.2rem;
     }
 
+    /* Subtitle text styling */
     .subtitle {
       font-size: 1rem;
       color: #555;
       margin-bottom: 2rem;
     }
 
+    /* Controls container - holds buttons in a flexible layout */
     .controls {
       display: flex;
       gap: 1rem;
@@ -37,6 +46,7 @@
       justify-content: center;
     }
 
+    /* Base button styling */
     button {
       padding: 0.85rem 1.75rem;
       font-size: 1.05rem;
@@ -46,6 +56,7 @@
       transition: background 0.3s ease;
     }
 
+    /* Start button - blue theme */
     #startBtn {
       background-color: #0078d4;
       color: white;
@@ -55,21 +66,25 @@
       background-color: #005ea0;
     }
 
+    /* Stop button - red theme */
     #stopBtn {
       background-color: #e81123;
       color: white;
     }
 
+    /* Disabled stop button styling */
     #stopBtn:disabled {
       background-color: #f3b2b2;
       cursor: not-allowed;
     }
 
+    /* Audio player element */
     audio {
       margin-top: 2rem;
       display: block;
     }
 
+    /* Footer at bottom of page */
     footer {
       position: absolute;
       bottom: 1rem;
@@ -79,101 +94,195 @@
   </style>
 </head>
 <body>
+  <!-- ============================================================================
+       MAIN CONTENT
+       Page header, configuration button, and chat interface
+       ============================================================================ -->
+       
+  <!-- Page title -->
   <h1>Farmacia Pepe</h1>
-    <!-- Configuration Button -->
+  
+  <!-- Configuration button - navigates to document upload page -->
   <button id="configBtn" onclick="window.location.href='/static/config.html'" title="Configure Grounding Documents">
     ⚙️
   </button>
+  
+  <!-- Subtitle with instructions -->
   <div class="subtitle">🎙️Parla con il BOT della Farmacia, sempre disponibile 7x24.</div>
 
+  <!-- Main controls container -->
   <div class="controls">
+      <!-- Chat interface container -->
       <div id="chatContainer">
+        <!-- Chat message history display area -->
         <div id="chatHistory"></div>
+        
+        <!-- Chat input area with text field and microphone button -->
         <div id="chatInputArea">
+          <!-- Text input field for typing messages -->
           <input type="text" id="chatInput" placeholder="Scrivi un messaggio..." autocomplete="off" />
+          
+          <!-- Send button (currently commented out) -->
 <!--          <button id="sendBtn" onclick="sendTextMessage()" title="Invia messaggio">
             <span aria-label="Invia" role="img">📤</span>
           </button>
 -->
+          <!-- Microphone button for voice interaction -->
           <button id="micBtn" onclick="toggleMic()" title="Parla con il bot">
             <span aria-label="Microfono" role="img">🎤</span>
           </button>
         </div>
       </div>
+      
+  <!-- Stop button (currently commented out) -->
 <!--  <button id="stopBtn" onclick="stopStreaming()" title="Ferma la conversazione">Ferma la conversazione</button> -->
+      
+      <!-- Audio player for TTS playback (auto-play enabled) -->
       <audio id="ttsPlayer" autoplay></audio>
   </div>
 
+  <!-- Duplicate audio player (can be removed) -->
   <audio id="ttsPlayer" autoplay></audio>
 
+  <!-- Page footer -->
   <footer id="pageFooter">
   </footer>
   <script>
-  let mediaStream, source, processor, micWorkletNode, socket;
+  // ============================================================================
+  // GLOBAL VARIABLES
+  // ============================================================================
+  
+  // Audio capture and streaming variables
+  let mediaStream;        // MediaStream from user's microphone
+  let source;             // MediaStreamSource node for audio input
+  let processor;          // Audio processor (legacy, kept for compatibility)
+  let micWorkletNode;     // AudioWorkletNode for processing microphone input
+  let socket;             // WebSocket connection to server for bidirectional audio/text
+  
+  // Audio context configuration - 24kHz sample rate matches Voice Live API requirements
   let audioContext = new AudioContext({ sampleRate: 24000 });
-  let isMicActive = false;
+  
+  // UI state tracking
+  let isMicActive = false;  // Tracks whether microphone is currently active
+  
+  // Playback worklet for handling incoming audio from server
   let workletNode;
 
-    // Load the AudioWorkletProcessor
+    // ============================================================================
+    // AUDIO WORKLET INITIALIZATION
+    // ============================================================================
+    
+    /**
+     * Loads and initializes the audio worklet processors.
+     * - audio-processor.js: Handles playback of audio received from server
+     * - mic-processor.js: Captures and processes microphone input
+     */
     async function loadAudioProcessor() {
-      // Load playback worklet and microphone capture worklet
+      // Load playback worklet for incoming audio from bot
       await audioContext.audioWorklet.addModule('/static/audio-processor.js');
-      // mic worklet is loaded but the node will be created when the microphone stream is available
+      
+      // Load microphone capture worklet (node will be created when mic starts)
       await audioContext.audioWorklet.addModule('/static/mic-processor.js');
+      
+      // Create playback worklet node and connect to audio output
       workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
       workletNode.connect(audioContext.destination);
     }
 
+    // ============================================================================
+    // AUDIO PLAYBACK FUNCTIONS
+    // ============================================================================
+    
+    /**
+     * Plays audio received from the server.
+     * Converts Int16 PCM audio data to Float32 and sends to audio worklet for playback.
+     * 
+     * @param {ArrayBuffer} arrayBuffer - Raw audio data in Int16 PCM format
+     */
     async function playAudio(arrayBuffer) {
+      // Resume audio context if suspended (required by browser autoplay policies)
       if (audioContext.state === 'suspended') await audioContext.resume();
+      
+      // Validate buffer length (must be even for Int16 data)
       if (arrayBuffer.byteLength % 2 !== 0) {
         console.warn("Received audio buffer with invalid length, skipping playback.");
         return;
       }
+      
+      // Convert Int16 PCM to Float32 for Web Audio API
       const int16 = new Int16Array(arrayBuffer);
       const float32 = new Float32Array(int16.length);
       for (let i = 0; i < int16.length; i++) {
+        // Normalize Int16 values (-32768 to 32767) to Float32 range (-1.0 to 1.0)
         float32[i] = int16[i] / (int16[i] < 0 ? 0x8000 : 0x7FFF);
       }
+      
+      // Send audio data to playback worklet
       workletNode.port.postMessage({ pcm: float32 });
     }
 
+    /**
+     * Stops audio playback by clearing the audio worklet buffer.
+     */
     function stopPlayback() {
       if (workletNode) workletNode.port.postMessage({ clear: true });
     }
 
+    /**
+     * Converts Float32 audio samples to Int16 PCM format for transmission.
+     * 
+     * @param {Float32Array} float32Array - Audio samples in Float32 format (-1.0 to 1.0)
+     * @returns {Int16Array} Audio samples in Int16 PCM format (-32768 to 32767)
+     */
     function float32ToInt16(float32Array) {
       const int16 = new Int16Array(float32Array.length);
       for (let i = 0; i < float32Array.length; i++) {
+        // Clamp values to valid range and convert to Int16
         const s = Math.max(-1, Math.min(1, float32Array[i]));
         int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
       }
       return int16;
     }
 
+    // ============================================================================
+    // MICROPHONE CAPTURE FUNCTIONS
+    // ============================================================================
+    
+    /**
+     * Starts capturing audio from the user's microphone.
+     * Creates an audio processing pipeline: Microphone → MediaStreamSource → AudioWorkletNode → WebSocket
+     */
     async function startMicrophone() {
       try {
+        // Request microphone access with audio processing settings
         mediaStream = await navigator.mediaDevices.getUserMedia({
           audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
+            echoCancellation: true,   // Remove echo for better voice quality
+            noiseSuppression: true,   // Reduce background noise
+            autoGainControl: true     // Normalize audio levels
           }
         });
+        
+        // Create audio source from microphone stream
         source = audioContext.createMediaStreamSource(mediaStream);
 
-        // Create an AudioWorkletNode for microphone capture. It has 1 input and 0 outputs.
+        // Create AudioWorkletNode for microphone capture
+        // 1 input (from microphone), 0 outputs (no local playback), mono channel
         micWorkletNode = new AudioWorkletNode(audioContext, 'mic-processor', {
           numberOfInputs: 1,
           numberOfOutputs: 0,
           channelCount: 1
         });
 
-        // Receive Float32 chunks from the worklet, convert to Int16 and forward to websocket
+        // Handle audio data from the worklet
         micWorkletNode.port.onmessage = (e) => {
           const float32 = e.data && e.data.input;
           if (!float32) return;
+          
+          // Convert Float32 to Int16 PCM for transmission
           const pcm = float32ToInt16(float32);
+          
+          // Send audio data to server via WebSocket
           if (socket?.readyState === WebSocket.OPEN) {
             socket.send(pcm.buffer);
           } else {
@@ -181,49 +290,87 @@
           }
         };
 
-        // Connect the media source to the worklet (no output so it won't play back locally)
+        // Connect microphone to worklet (no output = no local playback/echo)
         source.connect(micWorkletNode);
       } catch (error) {
         console.error("Error starting microphone:", error);
       }
     }
 
+    /**
+     * Stops microphone capture and cleans up resources.
+     * Disconnects audio nodes and stops all media tracks.
+     */
     function stopMicrophone() {
+      // Clean up microphone worklet node
       if (micWorkletNode && typeof micWorkletNode.disconnect === "function") {
-        try { micWorkletNode.port.postMessage({ clear: true }); } catch(e){}
+        try { 
+          // Clear any buffered audio data
+          micWorkletNode.port.postMessage({ clear: true }); 
+        } catch(e){}
         micWorkletNode.disconnect();
         micWorkletNode = null;
       }
+      
+      // Clean up legacy processor (backwards compatibility)
       if (processor && typeof processor.disconnect === "function") {
         processor.disconnect();
         processor = null;
       }
+      
+      // Stop all media tracks (releases microphone access)
       if (mediaStream && mediaStream.getTracks) {
         mediaStream.getTracks().forEach(t => t.stop());
         mediaStream = null;
       }
     }
 
+    // ============================================================================
+    // WEBSOCKET CONNECTION MANAGEMENT
+    // ============================================================================
+    
+    /**
+     * Stops the streaming session.
+     * Stops playback, microphone, closes WebSocket, and updates UI.
+     */
     function stopStreaming() {
         stopPlayback();
         stopMicrophone();
+        
+        // Send stop signal and close WebSocket connection
         if (socket && socket.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({ Kind: "StopAudio" }));
           socket.close();
         }
+        
+        // Update UI state
         isMicActive = false;
         document.getElementById("micBtn").classList.remove("active");
       }
 
+    // ============================================================================
+    // TEXT MESSAGING FUNCTIONS
+    // ============================================================================
+    
+    /**
+     * Sends a text message to the bot.
+     * Opens WebSocket connection if needed, sends text in Voice Live API format.
+     */
     function sendTextMessage() {
       const input = document.getElementById("chatInput");
       const text = input.value.trim();
       if (!text) return;
       
+      // Check if WebSocket is open
       if (!socket || socket.readyState !== WebSocket.OPEN) {
-        startStreaming(false); // false = don't start microphone
+        // Start streaming without microphone (text-only mode)
+        startStreaming(false);
+        
+        // Wait for WebSocket to open, then send message
         socket.onopen = () => {
           appendMessage("user", text);
+          
+          // Create message payload in Voice Live API format
           const payload = {
             type: "conversation.item.create",
             input: {
@@ -235,7 +382,9 @@
           input.value = "";
         };
       } else if (text) {
+        // WebSocket already open, send immediately
         appendMessage("user", text);
+        
         const payload = {
           type: "conversation.item.create",
           input: {
@@ -248,7 +397,13 @@
       }
     }
     
-    // Add this directly after the function above:
+    // ============================================================================
+    // EVENT LISTENERS
+    // ============================================================================
+    
+    /**
+     * Allow sending messages by pressing Enter key in chat input.
+     */
     document.getElementById("chatInput").addEventListener("keydown", function(e) {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -256,86 +411,157 @@
       }
     });
 
+    /**
+     * Appends a message to the chat history UI.
+     * 
+     * @param {string} sender - "user" or "bot" to determine styling
+     * @param {string} text - The message text to display
+     */
     function appendMessage(sender, text) {
       const chatHistory = document.getElementById("chatHistory");
       const msgDiv = document.createElement("div");
+      
+      // Apply appropriate styling based on sender
       msgDiv.className = sender === "user" ? "chatBubble userBubble" : "chatBubble botBubble";
       msgDiv.textContent = text;
+      
+      // Add to chat and scroll to bottom
       chatHistory.appendChild(msgDiv);
       chatHistory.scrollTop = chatHistory.scrollHeight;
     }
 
+    // ============================================================================
+    // MICROPHONE TOGGLE FUNCTION
+    // ============================================================================
+    
+    /**
+     * Toggles microphone on/off when user clicks the microphone button.
+     * Manages WebSocket connection and audio context state.
+     */
     function toggleMic() {
       if (!isMicActive) {
-        // Check if WebSocket is already open
+        // Activate microphone
+        
+        // Check if WebSocket connection exists
         if (!socket || socket.readyState !== WebSocket.OPEN) {
-          startStreaming(true); // true = start microphone
+          // No connection - start streaming with microphone enabled
+          startStreaming(true);
         } else {
-          // Resume audio context and start microphone
+          // Connection exists - just start microphone
+          // Resume audio context (required by browser autoplay policies)
           audioContext.resume().then(() => {
             startMicrophone();
           }).catch(err => {
             console.error("Error resuming audioContext:", err);
           });
         }
+        
+        // Update UI state
         isMicActive = true;
         document.getElementById("micBtn").classList.add("active");
       } else {
+        // Deactivate microphone
         stopMicrophone();
+        
+        // Update UI state
         isMicActive = false;
         document.getElementById("micBtn").classList.remove("active");
       }
     }
-    
 
+    // ============================================================================
+    // WEBSOCKET STREAMING INITIALIZATION
+    // ============================================================================
+    
+    /**
+     * Establishes WebSocket connection to the server and sets up message handlers.
+     * 
+     * @param {boolean} enableMicrophone - Whether to start microphone capture on connection
+     */
     function startStreaming(enableMicrophone = false) {
       // Prevent creating multiple WebSocket connections
       if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+        // Connection already exists, just start microphone if needed
         if (enableMicrophone && !isMicActive) {
           startMicrophone();
         }
         return;
       }
       
+      // Determine WebSocket protocol based on page protocol (ws or wss)
       let wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
-      let wsHost = window.location.host; 
+      let wsHost = window.location.host;
+      
+      // Create WebSocket connection to server
       socket = new WebSocket(`${wsProtocol}://${wsHost}/web/ws`);
-      socket.binaryType = "arraybuffer";
+      socket.binaryType = "arraybuffer";  // Receive binary data as ArrayBuffer
 
+      // ============================================================================
+      // WebSocket Event Handlers
+      // ============================================================================
+      
+      /**
+       * Handles WebSocket connection opened event.
+       * Resumes audio context and starts microphone if requested.
+       */
       socket.onopen = async () => {
+        // Resume audio context (required for audio playback)
         await audioContext.resume();
+        
+        // Start microphone if voice mode requested
         if (enableMicrophone) {
           await startMicrophone();
         }
+        
+        // Enable stop button in UI
         document.getElementById("stopBtn").disabled = false;
       };
+      
+      /**
+       * Handles incoming messages from the server.
+       * Processes both text messages (JSON) and binary audio data.
+       * 
+       * @param {MessageEvent} event - WebSocket message event
+       */
       socket.onmessage = async (event) => {
         try {
+          // Handle text messages (JSON format)
           if (typeof event.data === "string") {
             const msg = JSON.parse(event.data);
+            
+            // Handle different message types from Voice Live API
+            
+            // Stop audio playback command
             if (msg.Kind === "StopAudio") {
               stopPlayback();
             }
-            // User voice transcription (from microphone)
+            
+            // User voice transcription (what user said via microphone)
             if (msg.Kind === "UserVoiceTranscription") {
               appendMessage("user", msg.Text);
             }
-            // Bot voice response transcription (audio response from bot)
+            
+            // Bot voice transcription (what bot said via audio)
             if (msg.Kind === "BotVoiceTranscription") {
               appendMessage("bot", msg.Text);
             }
+            
             // Bot text response (for text-only chat)
             if (msg.Kind === "BotResponse") {
               appendMessage("bot", msg.Text);
             }
-            // Legacy support (backwards compatibility)
+            
+            // Legacy message types (backwards compatibility)
             if (msg.Kind === "Transcription") {
               appendMessage("user", msg.Text);
             }
             if (msg.Kind === "UserTranscription") {
               appendMessage("bot", msg.Text);
             }
+            
           } else if (event.data instanceof ArrayBuffer) {
+            // Handle binary audio data from bot
+            // Only play audio if microphone is active (conversation in progress)
             if (isMicActive) {
               try {
                 await playAudio(event.data);
@@ -349,20 +575,35 @@
         }
       }
 
+      /**
+       * Handles WebSocket connection closed event.
+       * Cleans up microphone and updates UI.
+       */
       socket.onclose = () => {
         stopMicrophone();
         document.getElementById("stopBtn").disabled = true;
       };
 
+      /**
+       * Handles WebSocket errors.
+       */
       socket.onerror = (err) => console.error("WebSocket error", err);
-
-      // No separate textSocket needed; text and audio handled by same socket
     }
 
-    // Initialize the audio processor
+    // ============================================================================
+    // INITIALIZATION
+    // ============================================================================
+    
+    // Initialize the audio worklet processors on page load
     loadAudioProcessor();
   </script>
+  
+  <!-- ============================================================================
+       WHATSAPP-STYLE CHAT INTERFACE STYLES
+       Styling for the chat container, messages, and input area
+       ============================================================================ -->
   <style>
+    /* Main page background - WhatsApp-inspired beige color */
     body {
       background: #ece5dd;
       font-family: 'Segoe UI', Arial, sans-serif;
@@ -373,6 +614,8 @@
       align-items: center;
       height: 100vh;
     }
+    
+    /* Chat window container - white card with shadow */
     #chatContainer {
       background: #fff;
       border-radius: 10px;
@@ -381,10 +624,12 @@
       max-width: 100vw;
       display: flex;
       flex-direction: column;
-      height: calc(80vh - 40px);
+      height: calc(80vh - 40px);  /* 80% viewport height minus margins */
       margin-bottom: 48px;
       overflow: hidden;
     }
+    
+    /* Chat message history area - scrollable with WhatsApp-style background */
     #chatHistory {
       flex: 1;
       overflow-y: auto;
@@ -394,6 +639,8 @@
       gap: 8px;
       background: #ece5dd;
     }
+    
+    /* Base style for all chat message bubbles */
     .chatBubble {
       max-width: 70%;
       padding: 10px 16px;
@@ -403,13 +650,17 @@
       box-shadow: 0 1px 2px rgba(0,0,0,0.04);
       display: inline-block;
     }
+    
+    /* User message bubble - green WhatsApp style, right-aligned */
     .userBubble {
-      background: #25d366;
+      background: #25d366;  /* WhatsApp green */
       color: #fff;
       align-self: flex-end;
       text-align: left;
       border: none;
     }
+    
+    /* Bot message bubble - white, left-aligned */
     .botBubble {
       background: #fff;
       color: #333;
@@ -417,6 +668,8 @@
       text-align: left;
       border: 1px solid #e1e1e1;
     }
+    
+    /* Chat input area - contains text field and buttons */
     #chatInputArea {
       display: flex;
       padding: 12px;
@@ -424,6 +677,8 @@
       border-top: 1px solid #e1e1e1;
       gap: 8px;
     }
+    
+    /* Text input field styling */
     #chatInput {
       flex: 1;
       padding: 8px 12px;
@@ -432,24 +687,30 @@
       font-size: 16px;
       outline: none;
     }
+    
+    /* Send and microphone button base styling */
     #sendBtn, #micBtn {
-      background: #25d366;
+      background: #25d366;  /* WhatsApp green */
       color: #fff;
       border: none;
-      border-radius: 50%;
+      border-radius: 50%;  /* Circular buttons */
       width: 40px;
       height: 40px;
       font-size: 18px;
       cursor: pointer;
       transition: background 0.2s;
     }
+    
+    /* Button hover and active states - darker green */
     #sendBtn:hover, #micBtn.active {
-      background: #128c7e;
+      background: #128c7e;  /* Darker WhatsApp green */
     }
+    
+    /* Stop button styling - red for emphasis */
     #stopBtn {
       margin: 12px auto;
       display: block;
-      background: #f44336;
+      background: #f44336;  /* Red */
       color: #fff;
       border: none;
       border-radius: 20px;
@@ -457,11 +718,15 @@
       font-size: 16px;
       cursor: pointer;
     }
+    
+    /* Disabled stop button - grayed out */
     #stopBtn:disabled {
       background: #e1e1e1;
       color: #888;
       cursor: not-allowed;
     }
+    
+    /* Page footer - fixed at bottom */
     #pageFooter {
       position: fixed;
       left: 0;
@@ -475,33 +740,35 @@
       z-index: 10;
     }
     
+    /* Configuration button - floating in top-right corner */
     #configBtn {
       position: fixed;
       top: 20px;
       right: 20px;
       width: 56px;
       height: 56px;
-      background: #0078d4;
+      background: #0078d4;  /* Azure blue */
       color: white;
       border: none;
-      border-radius: 50%;
+      border-radius: 50%;  /* Circular button */
       font-size: 24px;
       cursor: pointer;
       box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
       transition: all 0.3s ease;
-      z-index: 100;
+      z-index: 100;  /* Always on top */
       display: flex;
       align-items: center;
       justify-content: center;
     }
 
-    
+    /* Configuration button hover effect - darker blue with larger shadow */
     #configBtn:hover {
       background: #005ea0;
       box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
-      transform: scale(1.05);
+      transform: scale(1.05);  /* Slight size increase */
     }
     
+    /* Configuration button click effect - slightly smaller */
     #configBtn:active {
       transform: scale(0.95);
     }
