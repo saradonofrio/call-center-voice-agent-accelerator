@@ -38,7 +38,7 @@ def session_config(azure_search_config=None):
             "\n\nIMPORTANTE: Quando l'utente fa domande su farmaci, orari, servizi o informazioni della farmacia, "
             "usa SEMPRE la funzione search_pharmacy_database per cercare informazioni accurate. "
             "Basa le tue risposte sui risultati della ricerca. "
-            "Se la ricerca non trova risultati rilevanti, dillo chiaramente all'utente."
+            "Se la ricerca non trova risultati rilevanti, rispondi 'Ti consiglio di contattare la farmacia.'"
         )
     
     config = {
