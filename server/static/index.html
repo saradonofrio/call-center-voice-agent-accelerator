@@ -79,8 +79,12 @@
   </style>
 </head>
 <body>
-  <h1>🎙️ Farmacia Pepe 24</h1>
-  <div class="subtitle">Parla con il BOT della Farmacia. Clicca qui sotto per iniziare.</div>
+  <h1>Farmacia Pepe</h1>
+    <!-- Configuration Button -->
+  <button id="configBtn" onclick="window.location.href='/static/config.html'" title="Configure Grounding Documents">
+    ⚙️
+  </button>
+  <div class="subtitle">🎙️Parla con il BOT della Farmacia sempre disponibile 7x24.</div>
 
   <div class="controls">
       <div id="chatContainer">
@@ -103,14 +107,7 @@
   <audio id="ttsPlayer" autoplay></audio>
 
   <footer id="pageFooter">
-    Powered by Azure Voice Live • Demo Mode
   </footer>
-
-  <!-- Configuration Button -->
-  <button id="configBtn" onclick="window.location.href='/static/config.html'" title="Configure Grounding Documents">
-    ⚙️
-  </button>
-
   <script>
   let mediaStream, source, processor, micWorkletNode, socket;
   let audioContext = new AudioContext({ sampleRate: 24000 });
@@ -512,7 +509,7 @@
     
     #configBtn {
       position: fixed;
-      bottom: 60px;
+      top: 20px;
       right: 20px;
       width: 56px;
       height: 56px;
@@ -529,6 +526,7 @@
       align-items: center;
       justify-content: center;
     }
+
     
     #configBtn:hover {
       background: #005ea0;
