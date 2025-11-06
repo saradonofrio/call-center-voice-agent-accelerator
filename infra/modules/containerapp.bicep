@@ -43,6 +43,10 @@ param azureOpenAIKeySecretUri string = ''
 @description('Azure OpenAI embedding deployment name')
 param azureOpenAIEmbeddingDeployment string = ''
 
+// Security parameters
+@description('Allowed CORS origins (comma-separated or *)')
+param allowedOrigins string = '*'
+
 // Helper to sanitize environmentName for valid container app name
 var sanitizedEnvName = toLower(replace(replace(replace(replace(environmentName, ' ', '-'), '--', '-'), '[^a-zA-Z0-9-]', ''), '_', '-'))
 var containerAppName = take('ca-${sanitizedEnvName}-${uniqueSuffix}', 32)
@@ -162,6 +166,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
             {
               name: 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT'
               value: azureOpenAIEmbeddingDeployment
+            }
+            {
+              name: 'ALLOWED_ORIGINS'
+              value: allowedOrigins
             }
             {
               name: 'DEBUG_MODE'

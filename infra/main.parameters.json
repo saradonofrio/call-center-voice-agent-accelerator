@@ -49,6 +49,9 @@
       },
       "azureOpenAIEmbeddingDeployment": {
         "value": "${AZURE_OPENAI_EMBEDDING_DEPLOYMENT=}"
+      },
+      "allowedOrigins": {
+        "value": "${ALLOWED_ORIGINS=*}"
       }
     }
   }

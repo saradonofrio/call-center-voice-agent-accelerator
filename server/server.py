@@ -38,6 +38,7 @@ from app.document_processor import DocumentProcessor
 from app.auth import AzureADAuth, require_auth, require_auth_optional
 from dotenv import load_dotenv
 from quart import Quart, request, websocket, Response, jsonify, g
+from quart_cors import cors
 
 # Load environment variables from .env file
 load_dotenv()
@@ -60,6 +61,27 @@ logging.basicConfig(
 # ============================================================
 # Initialize Quart app (async-capable Flask alternative)
 app = Quart(__name__)
+
+# ============================================================
+# CORS CONFIGURATION
+# ============================================================
+# Configure Cross-Origin Resource Sharing for security
+# For testing: Allow all origins
+# For production: Restrict to specific domains
+ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "*")  # Use "*" for testing, specific domains for production
+
+# Apply CORS to the app
+app = cors(
+    app,
+    allow_origin=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
+    allow_credentials=True,
+    max_age=3600  # Cache preflight requests for 1 hour
+)
+
+logger = logging.getLogger(__name__)
+logger.info(f"CORS enabled with allowed origins: {ALLOWED_ORIGINS}")
 
 # ============================================================
 # AZURE COMMUNICATION SERVICES CONFIGURATION

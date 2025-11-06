@@ -55,6 +55,10 @@ param azureOpenAIKey string = ''
 @description('Azure OpenAI embedding deployment name')
 param azureOpenAIEmbeddingDeployment string = ''
 
+// Security parameters
+@description('Allowed CORS origins (comma-separated or * for all)')
+param allowedOrigins string = '*'
+
 var uniqueSuffix = substring(uniqueString(subscription().id, environmentName), 0, 5)
 var tags = {'azd-env-name': environmentName }
 var rgName = 'rg-${environmentName}-${uniqueSuffix}'
@@ -186,6 +190,8 @@ module containerapp 'modules/containerapp.bicep' = {
     azureOpenAIEndpoint: azureOpenAIEndpoint
     azureOpenAIKeySecretUri: keyvault.outputs.azureOpenAIKeyUri
     azureOpenAIEmbeddingDeployment: azureOpenAIEmbeddingDeployment
+    // Security parameters
+    allowedOrigins: allowedOrigins
   }
   dependsOn: [keyvault, RoleAssignments]
 }
