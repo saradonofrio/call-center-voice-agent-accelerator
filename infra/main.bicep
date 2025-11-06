@@ -58,6 +58,18 @@ param azureOpenAIEmbeddingDeployment string = ''
 // Security parameters
 @description('Allowed CORS origins (comma-separated or * for all)')
 param allowedOrigins string = '*'
+@description('Rate limit: max document uploads allowed')
+param rateLimitUploadsCount int = 10
+@description('Rate limit: uploads time window in seconds (3600 = 1 hour)')
+param rateLimitUploadsWindow int = 3600
+@description('Rate limit: max API calls allowed')
+param rateLimitApiCount int = 100
+@description('Rate limit: API time window in seconds (3600 = 1 hour)')
+param rateLimitApiWindow int = 3600
+@description('Rate limit: max admin operations allowed')
+param rateLimitAdminCount int = 50
+@description('Rate limit: admin time window in seconds (3600 = 1 hour)')
+param rateLimitAdminWindow int = 3600
 
 var uniqueSuffix = substring(uniqueString(subscription().id, environmentName), 0, 5)
 var tags = {'azd-env-name': environmentName }
@@ -192,6 +204,12 @@ module containerapp 'modules/containerapp.bicep' = {
     azureOpenAIEmbeddingDeployment: azureOpenAIEmbeddingDeployment
     // Security parameters
     allowedOrigins: allowedOrigins
+    rateLimitUploadsCount: rateLimitUploadsCount
+    rateLimitUploadsWindow: rateLimitUploadsWindow
+    rateLimitApiCount: rateLimitApiCount
+    rateLimitApiWindow: rateLimitApiWindow
+    rateLimitAdminCount: rateLimitAdminCount
+    rateLimitAdminWindow: rateLimitAdminWindow
   }
   dependsOn: [keyvault, RoleAssignments]
 }

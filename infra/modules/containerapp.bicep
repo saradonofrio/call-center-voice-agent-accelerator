@@ -46,6 +46,18 @@ param azureOpenAIEmbeddingDeployment string = ''
 // Security parameters
 @description('Allowed CORS origins (comma-separated or *)')
 param allowedOrigins string = '*'
+@description('Rate limit: max document uploads allowed')
+param rateLimitUploadsCount int = 10
+@description('Rate limit: uploads time window in seconds (3600 = 1 hour)')
+param rateLimitUploadsWindow int = 3600
+@description('Rate limit: max API calls allowed')
+param rateLimitApiCount int = 100
+@description('Rate limit: API time window in seconds (3600 = 1 hour)')
+param rateLimitApiWindow int = 3600
+@description('Rate limit: max admin operations allowed')
+param rateLimitAdminCount int = 50
+@description('Rate limit: admin time window in seconds (3600 = 1 hour)')
+param rateLimitAdminWindow int = 3600
 
 // Helper to sanitize environmentName for valid container app name
 var sanitizedEnvName = toLower(replace(replace(replace(replace(environmentName, ' ', '-'), '--', '-'), '[^a-zA-Z0-9-]', ''), '_', '-'))
@@ -170,6 +182,30 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
             {
               name: 'ALLOWED_ORIGINS'
               value: allowedOrigins
+            }
+            {
+              name: 'RATE_LIMIT_UPLOADS_COUNT'
+              value: string(rateLimitUploadsCount)
+            }
+            {
+              name: 'RATE_LIMIT_UPLOADS_WINDOW'
+              value: string(rateLimitUploadsWindow)
+            }
+            {
+              name: 'RATE_LIMIT_API_COUNT'
+              value: string(rateLimitApiCount)
+            }
+            {
+              name: 'RATE_LIMIT_API_WINDOW'
+              value: string(rateLimitApiWindow)
+            }
+            {
+              name: 'RATE_LIMIT_ADMIN_COUNT'
+              value: string(rateLimitAdminCount)
+            }
+            {
+              name: 'RATE_LIMIT_ADMIN_WINDOW'
+              value: string(rateLimitAdminWindow)
             }
             {
               name: 'DEBUG_MODE'

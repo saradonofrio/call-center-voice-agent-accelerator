@@ -52,6 +52,24 @@
       },
       "allowedOrigins": {
         "value": "${ALLOWED_ORIGINS=*}"
+      },
+      "rateLimitUploadsCount": {
+        "value": "${RATE_LIMIT_UPLOADS_COUNT=10}"
+      },
+      "rateLimitUploadsWindow": {
+        "value": "${RATE_LIMIT_UPLOADS_WINDOW=3600}"
+      },
+      "rateLimitApiCount": {
+        "value": "${RATE_LIMIT_API_COUNT=100}"
+      },
+      "rateLimitApiWindow": {
+        "value": "${RATE_LIMIT_API_WINDOW=3600}"
+      },
+      "rateLimitAdminCount": {
+        "value": "${RATE_LIMIT_ADMIN_COUNT=50}"
+      },
+      "rateLimitAdminWindow": {
+        "value": "${RATE_LIMIT_ADMIN_WINDOW=3600}"
       }
     }
   }

@@ -39,6 +39,8 @@ from app.auth import AzureADAuth, require_auth, require_auth_optional
 from dotenv import load_dotenv
 from quart import Quart, request, websocket, Response, jsonify, g
 from quart_cors import cors
+# from quart_rate_limiter import RateLimiter, rate_limit  # Temporarily disabled due to deployment issues
+from app.rate_limiter import rate_limit, get_rate_limiter  # Custom lightweight rate limiter
 
 # Load environment variables from .env file
 load_dotenv()
@@ -82,6 +84,40 @@ app = cors(
 
 logger = logging.getLogger(__name__)
 logger.info(f"CORS enabled with allowed origins: {ALLOWED_ORIGINS}")
+
+# ============================================================
+# RATE LIMITING CONFIGURATION
+# ============================================================
+# Protect against DoS attacks and API abuse using custom lightweight rate limiter
+# No external dependencies required - works with single-instance deployments
+
+# Rate limit settings in seconds (can be customized via environment variables)
+RATE_LIMIT_UPLOADS_COUNT = int(os.environ.get("RATE_LIMIT_UPLOADS_COUNT", "10"))
+RATE_LIMIT_UPLOADS_WINDOW = int(os.environ.get("RATE_LIMIT_UPLOADS_WINDOW", "3600"))  # 1 hour
+
+RATE_LIMIT_API_COUNT = int(os.environ.get("RATE_LIMIT_API_COUNT", "100"))
+RATE_LIMIT_API_WINDOW = int(os.environ.get("RATE_LIMIT_API_WINDOW", "3600"))  # 1 hour
+
+RATE_LIMIT_ADMIN_COUNT = int(os.environ.get("RATE_LIMIT_ADMIN_COUNT", "50"))
+RATE_LIMIT_ADMIN_WINDOW = int(os.environ.get("RATE_LIMIT_ADMIN_WINDOW", "3600"))  # 1 hour
+
+logger.info(f"Rate limiting enabled - Uploads: {RATE_LIMIT_UPLOADS_COUNT}/{RATE_LIMIT_UPLOADS_WINDOW}s, "
+            f"API: {RATE_LIMIT_API_COUNT}/{RATE_LIMIT_API_WINDOW}s, "
+            f"Admin: {RATE_LIMIT_ADMIN_COUNT}/{RATE_LIMIT_ADMIN_WINDOW}s")
+
+# Schedule periodic cleanup to prevent memory growth
+async def cleanup_rate_limiter():
+    """Background task to cleanup old rate limiter entries."""
+    while True:
+        await asyncio.sleep(3600)  # Run every hour
+        get_rate_limiter().cleanup_old_entries()
+        logger.debug("Rate limiter cleanup completed")
+
+# Start cleanup task
+@app.before_serving
+async def start_cleanup_task():
+    app.add_background_task(cleanup_rate_limiter)
+
 
 # ============================================================
 # AZURE COMMUNICATION SERVICES CONFIGURATION
@@ -252,6 +288,8 @@ async def acs_event_callbacks(context_id):
 # ============================================================
 # WEBSOCKET ENDPOINTS - Audio Streaming
 # ============================================================
+# Note: Rate limiting not applied to WebSockets (not supported by quart-rate-limiter)
+# WebSocket connection limits should be configured at the infrastructure level
 
 @app.websocket("/acs/ws")
 async def acs_ws():
@@ -374,6 +412,7 @@ async def index():
 # ============================================================
 
 @app.route("/api/documents", methods=["POST"])
+@rate_limit(max_requests=RATE_LIMIT_UPLOADS_COUNT, window_seconds=RATE_LIMIT_UPLOADS_WINDOW)
 # Public for testing - no authentication required
 async def upload_documents():
     """
@@ -477,6 +516,7 @@ async def upload_documents():
 
 
 @app.route("/api/documents", methods=["GET"])
+@rate_limit(max_requests=RATE_LIMIT_API_COUNT, window_seconds=RATE_LIMIT_API_WINDOW)
 # GET documents is public - no authentication required for viewing
 async def list_documents():
     """
@@ -507,6 +547,7 @@ async def list_documents():
 
 
 @app.route("/api/documents/<path:document_id>", methods=["DELETE"])
+@rate_limit(max_requests=RATE_LIMIT_API_COUNT, window_seconds=RATE_LIMIT_API_WINDOW)
 # Public for testing - no authentication required
 async def delete_document(document_id):
     """
@@ -547,6 +588,7 @@ async def delete_document(document_id):
 # ============================================================
 
 @app.route("/api/indexer/create", methods=["POST"])
+@rate_limit(max_requests=RATE_LIMIT_ADMIN_COUNT, window_seconds=RATE_LIMIT_ADMIN_WINDOW)
 # Public for testing - no authentication required
 async def create_indexer():
     """
@@ -587,6 +629,7 @@ async def create_indexer():
 
 
 @app.route("/api/indexer/run", methods=["POST"])
+@rate_limit(max_requests=RATE_LIMIT_ADMIN_COUNT, window_seconds=RATE_LIMIT_ADMIN_WINDOW)
 # Public for testing - no authentication required
 async def run_indexer():
     """
@@ -624,6 +667,7 @@ async def run_indexer():
 
 
 @app.route("/api/indexer/status", methods=["GET"])
+@rate_limit(max_requests=RATE_LIMIT_API_COUNT, window_seconds=RATE_LIMIT_API_WINDOW)
 # GET status is public - no authentication required for viewing
 async def get_indexer_status():
     """

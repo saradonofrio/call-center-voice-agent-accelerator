@@ -10,6 +10,7 @@ dependencies = [
     "httpx>=0.28.0",
     "python-dotenv>=1.1.0",
     "quart-cors>=0.8.0",
+    # "quart-rate-limiter>=0.10.0",  # Temporarily disabled due to deployment issues
     "azure-core>=1.34.0",
     "azure-communication-identity>=1.5.0",
     "aiohttp>=3.12.14",
