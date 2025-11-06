@@ -352,12 +352,12 @@ async def index():
 # ============================================================
 
 @app.route("/api/documents", methods=["POST"])
-@require_auth(azure_ad_auth, required_roles=["Admin", "User"]) if azure_ad_auth else lambda f: f
+# Public for testing - no authentication required
 async def upload_documents():
     """
     Upload and index documents to Azure Search for RAG.
     
-    **Authentication Required**: Bearer token with Admin or User role
+    **Authentication**: None required (public endpoint for testing)
     
     This endpoint handles document uploads and processes them for knowledge base:
     1. Validate file size (max 10MB) and type (pdf, docx, doc, txt)
@@ -455,12 +455,12 @@ async def upload_documents():
 
 
 @app.route("/api/documents", methods=["GET"])
-@require_auth(azure_ad_auth, required_roles=["Admin", "User"]) if azure_ad_auth else lambda f: f
+# GET documents is public - no authentication required for viewing
 async def list_documents():
     """
     List all indexed documents in Azure Search.
     
-    **Authentication Required**: Bearer token with Admin or User role
+    **Authentication**: None required (public endpoint)
     
     Retrieves metadata for all documents currently indexed in the knowledge base.
     Useful for displaying available documents to users or administrators.
@@ -485,12 +485,12 @@ async def list_documents():
 
 
 @app.route("/api/documents/<path:document_id>", methods=["DELETE"])
-@require_auth(azure_ad_auth, required_roles=["Admin"]) if azure_ad_auth else lambda f: f
+# Public for testing - no authentication required
 async def delete_document(document_id):
     """
     Delete a document from Azure Search and Blob Storage.
     
-    **Authentication Required**: Bearer token with Admin role
+    **Authentication**: None required (public endpoint for testing)
     
     Removes a document from the knowledge base:
     1. Delete from Azure AI Search index
@@ -525,12 +525,12 @@ async def delete_document(document_id):
 # ============================================================
 
 @app.route("/api/indexer/create", methods=["POST"])
-@require_auth(azure_ad_auth, required_roles=["Admin"]) if azure_ad_auth else lambda f: f
+# Public for testing - no authentication required
 async def create_indexer():
     """
     Create an Azure Search Indexer for automatic document processing.
     
-    **Authentication Required**: Bearer token with Admin role
+    **Authentication**: None required (public endpoint for testing)
     
     Sets up an automated pipeline that:
     1. Monitors Azure Blob Storage container for new documents
@@ -565,12 +565,12 @@ async def create_indexer():
 
 
 @app.route("/api/indexer/run", methods=["POST"])
-@require_auth(azure_ad_auth, required_roles=["Admin"]) if azure_ad_auth else lambda f: f
+# Public for testing - no authentication required
 async def run_indexer():
     """
     Manually trigger the indexer to process documents.
     
-    **Authentication Required**: Bearer token with Admin role
+    **Authentication**: None required (public endpoint for testing)
     
     Forces the indexer to run immediately instead of waiting for its schedule.
     Useful for:
@@ -602,12 +602,12 @@ async def run_indexer():
 
 
 @app.route("/api/indexer/status", methods=["GET"])
-@require_auth(azure_ad_auth, required_roles=["Admin", "User"]) if azure_ad_auth else lambda f: f
+# GET status is public - no authentication required for viewing
 async def get_indexer_status():
     """
     Get the current status of the indexer.
     
-    **Authentication Required**: Bearer token with Admin or User role
+    **Authentication**: None required (public endpoint)
     
     Returns information about:
     - Indexer execution history
