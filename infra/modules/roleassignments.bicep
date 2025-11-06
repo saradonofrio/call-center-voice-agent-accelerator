@@ -26,7 +26,6 @@ resource aiAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-
 resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' existing = {
   name: keyVaultName
 }

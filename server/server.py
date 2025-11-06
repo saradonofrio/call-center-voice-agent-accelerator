@@ -35,8 +35,9 @@ import os
 from app.handler.acs_event_handler import AcsEventHandler
 from app.handler.acs_media_handler import ACSMediaHandler
 from app.document_processor import DocumentProcessor
+from app.auth import AzureADAuth, require_auth, require_auth_optional
 from dotenv import load_dotenv
-from quart import Quart, request, websocket, Response, jsonify
+from quart import Quart, request, websocket, Response, jsonify, g
 
 # Load environment variables from .env file
 load_dotenv()
@@ -103,6 +104,28 @@ app.config["AZURE_STORAGE_CONTAINER"] = os.environ.get("AZURE_STORAGE_CONTAINER"
 app.config["AZURE_OPENAI_ENDPOINT"] = os.environ.get("AZURE_OPENAI_ENDPOINT")
 app.config["AZURE_OPENAI_KEY"] = os.environ.get("AZURE_OPENAI_KEY")
 app.config["AZURE_OPENAI_EMBEDDING_DEPLOYMENT"] = os.environ.get("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002")
+
+# ============================================================
+# AZURE AD / ENTRA ID AUTHENTICATION CONFIGURATION
+# ============================================================
+# Azure AD configuration for API authentication
+# These values come from your App Registration in Azure Portal
+AZURE_AD_TENANT_ID = os.environ.get("AZURE_AD_TENANT_ID")
+AZURE_AD_CLIENT_ID = os.environ.get("AZURE_AD_CLIENT_ID")
+AZURE_AD_AUDIENCE = os.environ.get("AZURE_AD_AUDIENCE")  # Optional, defaults to api://{client_id}
+
+# Initialize Azure AD authentication handler
+# Set to None if not configured (allows running without auth in dev)
+azure_ad_auth = None
+if AZURE_AD_TENANT_ID and AZURE_AD_CLIENT_ID:
+    azure_ad_auth = AzureADAuth(
+        tenant_id=AZURE_AD_TENANT_ID,
+        client_id=AZURE_AD_CLIENT_ID,
+        audience=AZURE_AD_AUDIENCE
+    )
+    logging.info("Azure AD authentication enabled")
+else:
+    logging.warning("Azure AD authentication NOT configured - API endpoints are UNPROTECTED!")
 
 # ============================================================
 # INITIALIZE HANDLERS
@@ -329,9 +352,12 @@ async def index():
 # ============================================================
 
 @app.route("/api/documents", methods=["POST"])
+@require_auth(azure_ad_auth, required_roles=["Admin", "User"]) if azure_ad_auth else lambda f: f
 async def upload_documents():
     """
     Upload and index documents to Azure Search for RAG.
+    
+    **Authentication Required**: Bearer token with Admin or User role
     
     This endpoint handles document uploads and processes them for knowledge base:
     1. Validate file size (max 10MB) and type (pdf, docx, doc, txt)
@@ -347,9 +373,16 @@ async def upload_documents():
         JSON: Results for each uploaded file with status (success/error)
         200 OK: All files processed (check individual results for errors)
         400 Bad Request: No files provided
+        401 Unauthorized: Missing or invalid authentication
+        403 Forbidden: Insufficient permissions
         500 Internal Server Error: Processing failure
     """
     logger = logging.getLogger("upload_documents")
+    
+    # Log authenticated user if available
+    if hasattr(g, 'user'):
+        logger.info("Document upload by user: %s (%s)", 
+                   g.user.get('username'), g.user.get('roles'))
     
     try:
         # Get uploaded files from multipart form data
@@ -422,9 +455,12 @@ async def upload_documents():
 
 
 @app.route("/api/documents", methods=["GET"])
+@require_auth(azure_ad_auth, required_roles=["Admin", "User"]) if azure_ad_auth else lambda f: f
 async def list_documents():
     """
     List all indexed documents in Azure Search.
+    
+    **Authentication Required**: Bearer token with Admin or User role
     
     Retrieves metadata for all documents currently indexed in the knowledge base.
     Useful for displaying available documents to users or administrators.
@@ -432,6 +468,8 @@ async def list_documents():
     Returns:
         JSON: List of documents with metadata (id, filename, upload date, etc.)
         200 OK: Documents retrieved successfully
+        401 Unauthorized: Missing or invalid authentication
+        403 Forbidden: Insufficient permissions
         500 Internal Server Error: Query failure
     """
     logger = logging.getLogger("list_documents")
@@ -447,9 +485,12 @@ async def list_documents():
 
 
 @app.route("/api/documents/<path:document_id>", methods=["DELETE"])
+@require_auth(azure_ad_auth, required_roles=["Admin"]) if azure_ad_auth else lambda f: f
 async def delete_document(document_id):
     """
     Delete a document from Azure Search and Blob Storage.
+    
+    **Authentication Required**: Bearer token with Admin role
     
     Removes a document from the knowledge base:
     1. Delete from Azure AI Search index
@@ -484,9 +525,12 @@ async def delete_document(document_id):
 # ============================================================
 
 @app.route("/api/indexer/create", methods=["POST"])
+@require_auth(azure_ad_auth, required_roles=["Admin"]) if azure_ad_auth else lambda f: f
 async def create_indexer():
     """
     Create an Azure Search Indexer for automatic document processing.
+    
+    **Authentication Required**: Bearer token with Admin role
     
     Sets up an automated pipeline that:
     1. Monitors Azure Blob Storage container for new documents
@@ -500,6 +544,8 @@ async def create_indexer():
     Returns:
         JSON: Indexer creation result with status and details
         200 OK: Indexer created successfully
+        401 Unauthorized: Missing or invalid authentication
+        403 Forbidden: Insufficient permissions (requires Admin role)
         500 Internal Server Error: Creation failure
     """
     logger = logging.getLogger("create_indexer")
@@ -519,9 +565,12 @@ async def create_indexer():
 
 
 @app.route("/api/indexer/run", methods=["POST"])
+@require_auth(azure_ad_auth, required_roles=["Admin"]) if azure_ad_auth else lambda f: f
 async def run_indexer():
     """
     Manually trigger the indexer to process documents.
+    
+    **Authentication Required**: Bearer token with Admin role
     
     Forces the indexer to run immediately instead of waiting for its schedule.
     Useful for:
@@ -532,6 +581,8 @@ async def run_indexer():
     Returns:
         JSON: Indexer run result with status
         200 OK: Indexer triggered successfully
+        401 Unauthorized: Missing or invalid authentication
+        403 Forbidden: Insufficient permissions (requires Admin role)
         500 Internal Server Error: Trigger failure
     """
     logger = logging.getLogger("run_indexer")
@@ -551,9 +602,12 @@ async def run_indexer():
 
 
 @app.route("/api/indexer/status", methods=["GET"])
+@require_auth(azure_ad_auth, required_roles=["Admin", "User"]) if azure_ad_auth else lambda f: f
 async def get_indexer_status():
     """
     Get the current status of the indexer.
+    
+    **Authentication Required**: Bearer token with Admin or User role
     
     Returns information about:
     - Indexer execution history
@@ -567,6 +621,8 @@ async def get_indexer_status():
     Returns:
         JSON: Indexer status details
         200 OK: Status retrieved successfully
+        401 Unauthorized: Missing or invalid authentication
+        403 Forbidden: Insufficient permissions
         404 Not Found: Indexer doesn't exist
         500 Internal Server Error: Query failure
     """
@@ -595,4 +651,5 @@ if __name__ == "__main__":
     # debug=True enables auto-reload and detailed error messages
     # host="0.0.0.0" allows external connections (not just localhost)
     # port=8000 is the default port for this application
-    app.run(debug=True, host="0.0.0.0", port=8000)
+    debug_mode = os.environ.get("DEBUG", "false").lower() == "true"
+    app.run(debug=debug_mode, host="0.0.0.0", port=8000)

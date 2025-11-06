@@ -21,6 +21,39 @@ param appExists bool
 param modelName string = ' gpt-4o-mini'
 @description('Id of the user or app to assign application roles. If ommited will be generated from the user assigned identity.')
 param principalId string = ''
+@description('Azure AD Tenant ID for authentication (optional)')
+param azureAdTenantId string = ''
+@description('Azure AD Client ID (API app) for authentication (optional)')
+param azureAdClientId string = ''
+
+// Azure Search parameters
+@description('Azure Search endpoint URL')
+param azureSearchEndpoint string = ''
+@description('Azure Search index name')
+param azureSearchIndex string = ''
+@secure()
+@description('Azure Search API key (secret)')
+param azureSearchApiKey string = ''
+@description('Azure Search semantic configuration name')
+param azureSearchSemanticConfig string = ''
+@description('Azure Search top N results')
+param azureSearchTopN string = '5'
+@description('Azure Search strictness level')
+param azureSearchStrictness string = '3'
+
+// Azure Storage parameters
+@secure()
+@description('Azure Storage connection string (secret)')
+param azureStorageConnectionString string = ''
+
+// Azure OpenAI parameters
+@description('Azure OpenAI endpoint URL')
+param azureOpenAIEndpoint string = ''
+@secure()
+@description('Azure OpenAI API key (secret)')
+param azureOpenAIKey string = ''
+@description('Azure OpenAI embedding deployment name')
+param azureOpenAIEmbeddingDeployment string = ''
 
 var uniqueSuffix = substring(uniqueString(subscription().id, environmentName), 0, 5)
 var tags = {'azd-env-name': environmentName }
@@ -102,6 +135,9 @@ module keyvault 'modules/keyvault.bicep' = {
     keyVaultName: sanitizedKeyVaultName
     tags: tags
     acsConnectionString: acs.outputs.acsConnectionString
+    azureSearchApiKey: azureSearchApiKey
+    azureStorageConnectionString: azureStorageConnectionString
+    azureOpenAIKey: azureOpenAIKey
   }
   dependsOn: [ appIdentity, acs ]
 }
@@ -135,6 +171,21 @@ module containerapp 'modules/containerapp.bicep' = {
     acsConnectionStringSecretUri: keyvault.outputs.acsConnectionStringUri
     logAnalyticsWorkspaceName: logAnalyticsName
     imageName: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+    azureAdTenantId: azureAdTenantId
+    azureAdClientId: azureAdClientId
+    // Azure Search parameters
+    azureSearchEndpoint: azureSearchEndpoint
+    azureSearchIndex: azureSearchIndex
+    azureSearchApiKeySecretUri: keyvault.outputs.azureSearchApiKeyUri
+    azureSearchSemanticConfig: azureSearchSemanticConfig
+    azureSearchTopN: azureSearchTopN
+    azureSearchStrictness: azureSearchStrictness
+    // Azure Storage parameters
+    azureStorageConnectionStringSecretUri: keyvault.outputs.azureStorageConnectionStringUri
+    // Azure OpenAI parameters
+    azureOpenAIEndpoint: azureOpenAIEndpoint
+    azureOpenAIKeySecretUri: keyvault.outputs.azureOpenAIKeyUri
+    azureOpenAIEmbeddingDeployment: azureOpenAIEmbeddingDeployment
   }
   dependsOn: [keyvault, RoleAssignments]
 }

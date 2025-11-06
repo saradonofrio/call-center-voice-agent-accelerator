@@ -13,6 +13,42 @@
       },
       "appExists": {
         "value": "${SERVICE_APP_RESOURCE_EXISTS=false}"
+      },
+      "azureAdTenantId": {
+        "value": "${AZURE_AD_TENANT_ID=}"
+      },
+      "azureAdClientId": {
+        "value": "${AZURE_AD_CLIENT_ID=}"
+      },
+      "azureSearchEndpoint": {
+        "value": "${AZURE_SEARCH_ENDPOINT=}"
+      },
+      "azureSearchIndex": {
+        "value": "${AZURE_SEARCH_INDEX=}"
+      },
+      "azureSearchApiKey": {
+        "value": "${AZURE_SEARCH_API_KEY=}"
+      },
+      "azureSearchSemanticConfig": {
+        "value": "${AZURE_SEARCH_SEMANTIC_CONFIG=}"
+      },
+      "azureSearchTopN": {
+        "value": "${AZURE_SEARCH_TOP_N=5}"
+      },
+      "azureSearchStrictness": {
+        "value": "${AZURE_SEARCH_STRICTNESS=3}"
+      },
+      "azureStorageConnectionString": {
+        "value": "${AZURE_STORAGE_CONNECTION_STRING=}"
+      },
+      "azureOpenAIEndpoint": {
+        "value": "${AZURE_OPENAI_ENDPOINT=}"
+      },
+      "azureOpenAIKey": {
+        "value": "${AZURE_OPENAI_KEY=}"
+      },
+      "azureOpenAIEmbeddingDeployment": {
+        "value": "${AZURE_OPENAI_EMBEDDING_DEPLOYMENT=}"
       }
     }
   }
