@@ -622,6 +622,21 @@ class ACSMediaHandler:
             msg_type = data.get("type")
             logger.info("[handle_websocket_message] Message type: %s", msg_type)
             
+            # Handle custom instructions update from frontend
+            if msg_type == "session.update_instructions":
+                custom_instructions = data.get("instructions")
+                if custom_instructions:
+                    logger.info("[handle_websocket_message] Received custom instructions: %s", custom_instructions[:100])
+                    # Send session update to Voice Live API with custom instructions
+                    await self._send_json({
+                        "type": "session.update",
+                        "session": {
+                            "instructions": custom_instructions
+                        }
+                    })
+                    logger.info("[handle_websocket_message] Sent custom instructions to Voice Live API")
+                return
+            
             # Handle base64-encoded audio
             if msg_type == "input_audio_buffer.append" and "audio" in data:
                 await self.audio_to_voicelive(data["audio"])

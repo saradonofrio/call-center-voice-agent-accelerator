@@ -408,6 +408,63 @@ async def index():
 
 
 # ============================================================
+# AI INSTRUCTIONS API
+# ============================================================
+
+@app.route("/api/instructions", methods=["GET"])
+async def get_instructions():
+    """
+    Get the default AI system instructions.
+    
+    Returns:
+        JSON: Object containing the default base_instructions
+    """
+    from datetime import datetime
+    today = datetime.now().strftime("%d %B %Y")
+    
+    # Return the same default instructions used by the bot
+    base_instructions = (
+        f"Sei un assistente virtuale farmacista che risponde in modo naturale e con frasi brevi. "
+        f"Parla in italiano, a meno che le domande non arrivino in altra lingua. "
+        f"Ricordati che oggi è il giorno {today}, usa questa data come riferimento temporale per rispondere alle domande. "
+        f"Parla solo di argomenti inerenti la farmacia, se la ricerca non trova risultati rilevanti, rispondi 'Ti consiglio di contattare la farmacia.'"
+        f"Inizia la conversazione chiedendo Come posso esserti utile?"
+    )
+    
+    return jsonify({"instructions": base_instructions}), 200
+
+
+@app.route("/api/instructions", methods=["POST"])
+async def save_instructions():
+    """
+    Save custom AI instructions (stored in session for next WebSocket connection).
+    
+    Note: This is a placeholder endpoint. The actual instructions are sent
+    via WebSocket when the connection is established.
+    
+    Returns:
+        JSON: Success message
+    """
+    try:
+        data = await request.get_json()
+        instructions = data.get("instructions")
+        
+        if not instructions:
+            return jsonify({"error": "Instructions cannot be empty"}), 400
+        
+        # In a real implementation, you might store this in Redis or a database
+        # For now, we just acknowledge receipt since the client will send
+        # the instructions via WebSocket on connection
+        logger.info("Received custom instructions (will be applied on next WebSocket connection)")
+        
+        return jsonify({"message": "Instructions received"}), 200
+    
+    except Exception as e:
+        logger.exception("Error saving instructions")
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
 # DOCUMENT MANAGEMENT API
 # ============================================================
 
@@ -417,6 +474,8 @@ async def index():
 async def upload_documents():
     """
     Upload and index documents to Azure Search for RAG.
+    
+```
     
     **Authentication**: None required (public endpoint for testing)
     

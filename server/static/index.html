@@ -107,8 +107,29 @@
     ⚙️
   </button>
   
+  <!-- Instructions Editor Toggle Button -->
+  <button id="instructionsToggleBtn" onclick="toggleInstructionsPanel()" title="Edit AI Instructions">
+    📝
+  </button>
+  
   <!-- Subtitle with instructions -->
   <div class="subtitle">🎙️Parla con il BOT della Farmacia, sempre disponibile 7x24.</div>
+
+  <!-- Instructions Editor Panel (Initially Hidden) -->
+  <div id="instructionsPanel" class="instructions-panel">
+    <div class="panel-header">
+      <h3>AI System Instructions</h3>
+      <button class="close-panel-btn" onclick="toggleInstructionsPanel()">✕</button>
+    </div>
+    <div class="panel-content">
+      <textarea id="instructionsTextarea" placeholder="Loading instructions..."></textarea>
+      <div class="panel-actions">
+        <button id="saveInstructionsBtn" onclick="saveInstructions()">💾 Save Instructions</button>
+        <button id="resetInstructionsBtn" onclick="resetInstructions()">🔄 Reset to Default</button>
+      </div>
+      <div id="instructionsStatus" class="status-message"></div>
+    </div>
+  </div>
 
   <!-- Main controls container -->
   <div class="controls">
@@ -167,6 +188,10 @@
   
   // Playback worklet for handling incoming audio from server
   let workletNode;
+  
+  // Instructions editor state
+  let defaultInstructions = "";  // Store default instructions for reset
+  let customInstructions = "";   // Store user's custom instructions
 
     // ============================================================================
     // AUDIO WORKLET INITIALIZATION
@@ -508,6 +533,17 @@
         // Resume audio context (required for audio playback)
         await audioContext.resume();
         
+        // Send custom instructions if available
+        const customInstr = getCustomInstructions();
+        if (customInstr) {
+          const payload = {
+            type: "session.update_instructions",
+            instructions: customInstr
+          };
+          socket.send(JSON.stringify(payload));
+          console.log("Sent custom instructions to server");
+        }
+        
         // Start microphone if voice mode requested
         if (enableMicrophone) {
           await startMicrophone();
@@ -588,6 +624,147 @@
        * Handles WebSocket errors.
        */
       socket.onerror = (err) => console.error("WebSocket error", err);
+    }
+
+    // ============================================================================
+    // INSTRUCTIONS EDITOR FUNCTIONS
+    // ============================================================================
+    
+    /**
+     * Toggles the visibility of the instructions editor panel.
+     */
+    function toggleInstructionsPanel() {
+      const panel = document.getElementById("instructionsPanel");
+      if (panel.classList.contains("show")) {
+        panel.classList.remove("show");
+      } else {
+        panel.classList.add("show");
+        // Load current instructions when panel opens
+        loadInstructions();
+      }
+    }
+    
+    /**
+     * Loads the current AI instructions from localStorage or server.
+     */
+    async function loadInstructions() {
+      const textarea = document.getElementById("instructionsTextarea");
+      const statusDiv = document.getElementById("instructionsStatus");
+      
+      try {
+        // Try to load custom instructions from localStorage first
+        const saved = localStorage.getItem("customInstructions");
+        if (saved) {
+          customInstructions = saved;
+          textarea.value = customInstructions;
+          showStatus("✅ Loaded custom instructions", "success");
+        } else {
+          // Load default instructions from server
+          const response = await fetch("/api/instructions");
+          if (response.ok) {
+            const data = await response.json();
+            defaultInstructions = data.instructions || "";
+            customInstructions = defaultInstructions;
+            textarea.value = defaultInstructions;
+            showStatus("✅ Loaded default instructions", "success");
+          } else {
+            showStatus("⚠️ Could not load instructions from server", "warning");
+          }
+        }
+      } catch (error) {
+        console.error("Error loading instructions:", error);
+        showStatus("❌ Error loading instructions", "error");
+      }
+    }
+    
+    /**
+     * Saves custom instructions to localStorage and server.
+     */
+    async function saveInstructions() {
+      const textarea = document.getElementById("instructionsTextarea");
+      const instructions = textarea.value.trim();
+      
+      if (!instructions) {
+        showStatus("❌ Instructions cannot be empty", "error");
+        return;
+      }
+      
+      try {
+        // Save to localStorage
+        localStorage.setItem("customInstructions", instructions);
+        customInstructions = instructions;
+        
+        // Send to server (optional - server can use it for next connection)
+        const response = await fetch("/api/instructions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ instructions: instructions })
+        });
+        
+        if (response.ok) {
+          showStatus("✅ Instructions saved! Reconnect to apply changes.", "success");
+        } else {
+          showStatus("⚠️ Saved locally, but server update failed", "warning");
+        }
+        
+        // If WebSocket is open, suggest reconnecting
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          showStatus("💡 Close and reopen the chat to apply new instructions", "info");
+        }
+      } catch (error) {
+        console.error("Error saving instructions:", error);
+        // Still save locally even if server fails
+        localStorage.setItem("customInstructions", instructions);
+        showStatus("⚠️ Saved locally only (server unavailable)", "warning");
+      }
+    }
+    
+    /**
+     * Resets instructions to default by clearing custom settings.
+     */
+    function resetInstructions() {
+      if (!confirm("Reset to default instructions? Your custom instructions will be lost.")) {
+        return;
+      }
+      
+      // Clear localStorage
+      localStorage.removeItem("customInstructions");
+      
+      // Reset textarea to default
+      const textarea = document.getElementById("instructionsTextarea");
+      textarea.value = defaultInstructions;
+      customInstructions = defaultInstructions;
+      
+      showStatus("✅ Reset to default instructions. Reconnect to apply.", "success");
+    }
+    
+    /**
+     * Shows a status message in the instructions panel.
+     * 
+     * @param {string} message - Status message to display
+     * @param {string} type - Message type: "success", "error", "warning", "info"
+     */
+    function showStatus(message, type) {
+      const statusDiv = document.getElementById("instructionsStatus");
+      statusDiv.textContent = message;
+      statusDiv.className = `status-message ${type}`;
+      
+      // Auto-hide after 5 seconds
+      setTimeout(() => {
+        statusDiv.textContent = "";
+        statusDiv.className = "status-message";
+      }, 5000);
+    }
+    
+    /**
+     * Gets custom instructions to send with WebSocket connection.
+     * Called when establishing WebSocket connection.
+     * 
+     * @returns {string|null} Custom instructions or null if using default
+     */
+    function getCustomInstructions() {
+      const saved = localStorage.getItem("customInstructions");
+      return saved || null;
     }
 
     // ============================================================================
@@ -771,6 +948,205 @@
     /* Configuration button click effect - slightly smaller */
     #configBtn:active {
       transform: scale(0.95);
+    }
+    
+    /* ============================================================================
+       INSTRUCTIONS EDITOR PANEL STYLES
+       ============================================================================ */
+    
+    /* Instructions toggle button - floating next to config button */
+    #instructionsToggleBtn {
+      position: fixed;
+      top: 20px;
+      right: 90px;  /* Position to the left of config button */
+      width: 56px;
+      height: 56px;
+      background: #673ab7;  /* Deep purple */
+      color: white;
+      border: none;
+      border-radius: 50%;
+      font-size: 24px;
+      cursor: pointer;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      transition: all 0.3s ease;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #instructionsToggleBtn:hover {
+      background: #512da8;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+      transform: scale(1.05);
+    }
+
+    #instructionsToggleBtn:active {
+      transform: scale(0.95);
+    }
+    
+    /* Instructions editor panel - slides in from the left */
+    .instructions-panel {
+      position: fixed;
+      left: -420px;  /* Hidden by default */
+      top: 0;
+      width: 400px;
+      height: 100vh;
+      background: #fff;
+      box-shadow: 4px 0 12px rgba(0, 0, 0, 0.15);
+      transition: left 0.3s ease;
+      z-index: 99;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    /* Panel visible state - slides into view */
+    .instructions-panel.show {
+      left: 0;
+    }
+    
+    /* Panel header with title and close button */
+    .panel-header {
+      background: #673ab7;
+      color: white;
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    .panel-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    
+    /* Close panel button */
+    .close-panel-btn {
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      transition: background 0.2s;
+    }
+    
+    .close-panel-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    
+    /* Panel content area */
+    .panel-content {
+      flex: 1;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+    }
+    
+    /* Instructions textarea */
+    #instructionsTextarea {
+      flex: 1;
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #e1e1e1;
+      border-radius: 8px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      resize: none;
+      outline: none;
+      box-sizing: border-box;
+    }
+    
+    #instructionsTextarea:focus {
+      border-color: #673ab7;
+      box-shadow: 0 0 0 2px rgba(103, 58, 183, 0.1);
+    }
+    
+    /* Panel action buttons container */
+    .panel-actions {
+      display: flex;
+      gap: 12px;
+      flex-direction: column;
+    }
+    
+    /* Save and reset buttons */
+    #saveInstructionsBtn,
+    #resetInstructionsBtn {
+      padding: 12px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+    }
+    
+    #saveInstructionsBtn {
+      background: #673ab7;
+      color: white;
+    }
+    
+    #saveInstructionsBtn:hover {
+      background: #512da8;
+      box-shadow: 0 2px 6px rgba(103, 58, 183, 0.3);
+    }
+    
+    #resetInstructionsBtn {
+      background: #f5f5f5;
+      color: #333;
+      border: 1px solid #e1e1e1;
+    }
+    
+    #resetInstructionsBtn:hover {
+      background: #eeeeee;
+      border-color: #d0d0d0;
+    }
+    
+    /* Status message area */
+    .status-message {
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      text-align: center;
+      font-weight: 500;
+      transition: opacity 0.3s;
+    }
+    
+    .status-message:empty {
+      display: none;
+    }
+    
+    .status-message.success {
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #a5d6a7;
+    }
+    
+    .status-message.error {
+      background: #ffebee;
+      color: #c62828;
+      border: 1px solid #ef9a9a;
+    }
+    
+    .status-message.warning {
+      background: #fff3e0;
+      color: #ef6c00;
+      border: 1px solid #ffcc80;
+    }
+    
+    .status-message.info {
+      background: #e3f2fd;
+      color: #1565c0;
+      border: 1px solid #90caf9;
     }
   </style>
 </body>
