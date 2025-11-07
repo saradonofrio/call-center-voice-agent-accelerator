@@ -472,10 +472,93 @@
     });
 
     /**
-     * Appends a message to the chat history UI.
+     * Formats text with rich formatting (Markdown-style).
+     * Supports:
+     * - **bold** text
+     * - *italic* text
+     * - New lines
+     * - Bullet points (- or •)
+     * - Numbered lists (1. 2. 3.)
+     * - Links [text](url)
+     * 
+     * @param {string} text - Plain text with markdown-style formatting
+     * @returns {string} HTML string with formatting
+     */
+    function formatText(text) {
+      if (!text) return '';
+      
+      // Escape HTML to prevent XSS
+      let formatted = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      
+      // Convert **bold** to <strong>
+      formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      
+      // Convert *italic* to <em>
+      formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
+      
+      // Convert links [text](url) to <a>
+      formatted = formatted.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      
+      // Split into lines for list processing
+      const lines = formatted.split('\n');
+      const processedLines = [];
+      let inList = false;
+      let listType = null; // 'ul' or 'ol'
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        
+        // Check for bullet points (-, •, *)
+        if (/^[-•*]\s/.test(line)) {
+          if (!inList || listType !== 'ul') {
+            if (inList) processedLines.push(`</${listType}>`);
+            processedLines.push('<ul>');
+            inList = true;
+            listType = 'ul';
+          }
+          processedLines.push(`<li>${line.substring(2)}</li>`);
+        }
+        // Check for numbered lists (1. 2. 3.)
+        else if (/^\d+\.\s/.test(line)) {
+          if (!inList || listType !== 'ol') {
+            if (inList) processedLines.push(`</${listType}>`);
+            processedLines.push('<ol>');
+            inList = true;
+            listType = 'ol';
+          }
+          processedLines.push(`<li>${line.replace(/^\d+\.\s/, '')}</li>`);
+        }
+        // Regular line
+        else {
+          if (inList) {
+            processedLines.push(`</${listType}>`);
+            inList = false;
+            listType = null;
+          }
+          if (line) {
+            processedLines.push(line);
+          } else {
+            processedLines.push('<br>');
+          }
+        }
+      }
+      
+      // Close any open list
+      if (inList) {
+        processedLines.push(`</${listType}>`);
+      }
+      
+      return processedLines.join('\n');
+    }
+    
+    /**
+     * Appends a message to the chat history UI with rich formatting.
      * 
      * @param {string} sender - "user" or "bot" to determine styling
-     * @param {string} text - The message text to display
+     * @param {string} text - The message text to display (supports Markdown-style formatting)
      */
     function appendMessage(sender, text) {
       const chatHistory = document.getElementById("chatHistory");
@@ -483,7 +566,9 @@
       
       // Apply appropriate styling based on sender
       msgDiv.className = sender === "user" ? "chatBubble userBubble" : "chatBubble botBubble";
-      msgDiv.textContent = text;
+      
+      // Use innerHTML for rich formatting (text is sanitized in formatText)
+      msgDiv.innerHTML = formatText(text);
       
       // Add to chat and scroll to bottom
       chatHistory.appendChild(msgDiv);
@@ -945,6 +1030,60 @@
       align-self: flex-start;
       text-align: left;
       border: 1px solid #e1e1e1;
+      line-height: 1.5;
+    }
+    
+    /* Rich text formatting within chat bubbles */
+    .chatBubble strong {
+      font-weight: 700;
+    }
+    
+    .chatBubble em {
+      font-style: italic;
+    }
+    
+    .chatBubble a {
+      color: #128c7e;
+      text-decoration: underline;
+      font-weight: 600;
+    }
+    
+    .chatBubble a:hover {
+      color: #075e54;
+    }
+    
+    .userBubble a {
+      color: #fff;
+      text-decoration: underline;
+    }
+    
+    .userBubble a:hover {
+      opacity: 0.9;
+    }
+    
+    /* Lists in chat bubbles */
+    .chatBubble ul,
+    .chatBubble ol {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+    
+    .chatBubble li {
+      margin: 4px 0;
+    }
+    
+    .chatBubble ul {
+      list-style-type: disc;
+    }
+    
+    .chatBubble ol {
+      list-style-type: decimal;
+    }
+    
+    .chatBubble br {
+      display: block;
+      content: "";
+      margin: 4px 0;
     }
     
     /* Chat input area - contains text field and buttons */
