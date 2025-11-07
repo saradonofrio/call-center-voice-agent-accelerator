@@ -30,6 +30,7 @@ Endpoints:
 import asyncio
 import logging
 import sys
+import json
 
 import os
 from app.handler.acs_event_handler import AcsEventHandler
@@ -365,8 +366,9 @@ async def web_ws():
     # Set up incoming WebSocket (browser sends raw audio bytes)
     await handler.init_incoming_websocket(websocket, is_raw_audio=True)
     
-    # Connect to Voice Live API in background
-    asyncio.create_task(handler.connect())
+    # DON'T connect to Voice Live immediately - wait for custom instructions or first message
+    # This allows the frontend to send custom instructions first
+    voice_live_task = None
     
     # Track message count for debugging
     message_count = 0
@@ -381,11 +383,36 @@ async def web_ws():
             # Handle binary audio data
             if isinstance(msg, (bytes, bytearray)):
                 logger.debug("Received audio data, message #%d, size: %d bytes", message_count, len(msg))
+                
+                # Connect to Voice Live on first audio if not connected yet
+                if not handler.voice_live_connected and voice_live_task is None:
+                    logger.info("First audio received - connecting to Voice Live API")
+                    voice_live_task = asyncio.create_task(handler.connect())
+                    # Wait for connection to complete so custom instructions are used
+                    await voice_live_task
+                
                 # Forward raw audio to Voice Live API
                 await handler.web_to_voicelive(msg)
             # Handle text messages (e.g., configuration, commands)
             else:
                 logger.info("Received text message #%d: %s", message_count, msg[:100] if len(msg) > 100 else msg)
+                
+                # Parse message to check if it's custom instructions
+                try:
+                    msg_data = json.loads(msg) if isinstance(msg, str) else {}
+                    msg_type = msg_data.get("type")
+                except:
+                    msg_type = None
+                
+                # Connect to Voice Live on first non-instructions message if not connected yet
+                if not handler.voice_live_connected and voice_live_task is None:
+                    # Don't connect yet if this is the instructions message
+                    if msg_type != "session.update_instructions":
+                        logger.info("First user message received - connecting to Voice Live API")
+                        voice_live_task = asyncio.create_task(handler.connect())
+                        # Wait for connection to complete so custom instructions are used
+                        await voice_live_task
+                
                 # Route text message to appropriate handler
                 await handler.handle_websocket_message(msg)
     except Exception:
@@ -416,19 +443,20 @@ async def get_instructions():
     """
     Get the default AI system instructions.
     
-    Returns:
-        JSON: Object containing the default base_instructions
-    """
-    from datetime import datetime
-    today = datetime.now().strftime("%d %B %Y")
+    Returns the default instructions with placeholder examples.
+    Placeholders are processed by the frontend before sending to Voice Live API.
     
-    # Return the same default instructions used by the bot
+    Returns:
+        JSON: Object containing the default base_instructions with placeholders
+    """
+    # Return default instructions WITH PLACEHOLDERS as examples
+    # Frontend will replace {{TODAY_IT}}, {{DAY_IT}}, etc. with actual values
     base_instructions = (
-        f"Sei un assistente virtuale farmacista che risponde in modo naturale e con frasi brevi. "
-        f"Parla in italiano, a meno che le domande non arrivino in altra lingua. "
-        f"Ricordati che oggi è il giorno {today}, usa questa data come riferimento temporale per rispondere alle domande. "
-        f"Parla solo di argomenti inerenti la farmacia, se la ricerca non trova risultati rilevanti, rispondi 'Ti consiglio di contattare la farmacia.'"
-        f"Inizia la conversazione chiedendo Come posso esserti utile?"
+        "Sei un assistente virtuale farmacista che risponde in modo naturale e con frasi brevi. "
+        "Parla in italiano, a meno che le domande non arrivino in altra lingua. "
+        "Ricordati che oggi è {{TODAY_IT}}, {{DAY_IT}}, usa questa data come riferimento temporale per rispondere alle domande. "
+        "Parla solo di argomenti inerenti la farmacia, se la ricerca non trova risultati rilevanti, rispondi 'Ti consiglio di contattare la farmacia.' "
+        "Inizia la conversazione chiedendo 'Come posso esserti utile?'"
     )
     
     return jsonify({"instructions": base_instructions}), 200

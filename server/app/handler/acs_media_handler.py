@@ -213,6 +213,8 @@ class ACSMediaHandler:
         self.incoming_websocket = None           # WebSocket connection from client
         self.is_raw_audio = True                 # Flag for audio format (raw vs ACS format)
         self.response_in_progress = False        # Track if AI is generating a response
+        self.custom_instructions = None          # Store custom instructions from frontend
+        self.voice_live_connected = False        # Track if Voice Live connection is established
 
     def _generate_guid(self):
         """Generate a unique GUID for request tracking."""
@@ -270,7 +272,15 @@ class ACSMediaHandler:
         self.ws = await ws_connect(url, additional_headers=headers)
 
         # Send session configuration with Azure Search if enabled
-        session_cfg = session_config(self.azure_search_config)
+        # Use custom instructions if available, otherwise use defaults from session_config
+        if self.custom_instructions:
+            logger.info("Using custom instructions provided by user")
+            session_cfg = session_config(self.azure_search_config)
+            session_cfg["session"]["instructions"] = self.custom_instructions
+        else:
+            logger.info("Using default instructions")
+            session_cfg = session_config(self.azure_search_config)
+        
         logger.info("Session config type: %s", type(session_cfg))
         logger.info("Session config keys: %s", list(session_cfg.keys()) if isinstance(session_cfg, dict) else "NOT A DICT")
         
@@ -291,6 +301,10 @@ class ACSMediaHandler:
             
         await self._send_json(session_cfg)
         # Note: Don't send response.create here - let first user input trigger it
+        
+        # Mark Voice Live as connected
+        self.voice_live_connected = True
+        logger.info("Voice Live API connection established")
 
         # Start async message processing loops
         receiver_task = asyncio.create_task(self._receiver_loop())
@@ -627,14 +641,21 @@ class ACSMediaHandler:
                 custom_instructions = data.get("instructions")
                 if custom_instructions:
                     logger.info("[handle_websocket_message] Received custom instructions: %s", custom_instructions[:100])
-                    # Send session update to Voice Live API with custom instructions
-                    await self._send_json({
-                        "type": "session.update",
-                        "session": {
-                            "instructions": custom_instructions
-                        }
-                    })
-                    logger.info("[handle_websocket_message] Sent custom instructions to Voice Live API")
+                    
+                    # Store custom instructions for when we connect to Voice Live
+                    self.custom_instructions = custom_instructions
+                    
+                    # If already connected to Voice Live, send update
+                    if self.voice_live_connected:
+                        await self._send_json({
+                            "type": "session.update",
+                            "session": {
+                                "instructions": custom_instructions
+                            }
+                        })
+                        logger.info("[handle_websocket_message] Sent custom instructions update to Voice Live API")
+                    else:
+                        logger.info("[handle_websocket_message] Stored custom instructions for initial connection")
                 return
             
             # Handle base64-encoded audio

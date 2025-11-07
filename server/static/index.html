@@ -123,6 +123,32 @@
     </div>
     <div class="panel-content">
       <textarea id="instructionsTextarea" placeholder="Loading instructions..."></textarea>
+      
+      <!-- Placeholders help section -->
+      <div class="placeholders-info">
+        <details>
+          <summary>📝 Available Placeholders (click to expand)</summary>
+          <div class="placeholders-list">
+            <p><strong>Date & Time Placeholders:</strong></p>
+            <ul>
+              <li><code>{{TODAY}}</code> - Current date: "7 November 2025"</li>
+              <li><code>{{TODAY_IT}}</code> - Italian date: "7 novembre 2025"</li>
+              <li><code>{{TIME}}</code> - Current time: "14:30"</li>
+              <li><code>{{DATETIME}}</code> - Full datetime: "7 November 2025, 14:30"</li>
+              <li><code>{{DATETIME_IT}}</code> - Italian datetime: "7 novembre 2025, 14:30"</li>
+              <li><code>{{DAY}}</code> - Day of week: "Thursday"</li>
+              <li><code>{{DAY_IT}}</code> - Italian day: "giovedì"</li>
+              <li><code>{{MONTH}}</code> - Month name: "November"</li>
+              <li><code>{{MONTH_IT}}</code> - Italian month: "novembre"</li>
+              <li><code>{{YEAR}}</code> - Year: "2025"</li>
+            </ul>
+            <p class="placeholder-example"><strong>Example:</strong><br>
+            "Oggi è {{TODAY_IT}}, {{DAY_IT}}. Sono le {{TIME}}."<br>
+            → "Oggi è 7 novembre 2025, giovedì. Sono le 14:30."</p>
+          </div>
+        </details>
+      </div>
+      
       <div class="panel-actions">
         <button id="saveInstructionsBtn" onclick="saveInstructions()">💾 Save Instructions</button>
         <button id="resetInstructionsBtn" onclick="resetInstructions()">🔄 Reset to Default</button>
@@ -392,20 +418,29 @@
         startStreaming(false);
         
         // Wait for WebSocket to open, then send message
-        socket.onopen = () => {
-          appendMessage("user", text);
-          
-          // Create message payload in Voice Live API format
-          const payload = {
-            type: "conversation.item.create",
-            input: {
-              type: "input_text",
-              text: text
-            }
-          };
-          socket.send(JSON.stringify(payload));
-          input.value = "";
+        // Use a listener to avoid overwriting the onopen handler in startStreaming()
+        const sendWhenReady = () => {
+          if (socket.readyState === WebSocket.OPEN) {
+            appendMessage("user", text);
+            
+            // Create message payload in Voice Live API format
+            const payload = {
+              type: "conversation.item.create",
+              input: {
+                type: "input_text",
+                text: text
+              }
+            };
+            socket.send(JSON.stringify(payload));
+            input.value = "";
+          } else {
+            // Not ready yet, wait a bit and try again
+            setTimeout(sendWhenReady, 50);
+          }
         };
+        
+        // Start checking after a short delay to allow socket.onopen to run first
+        setTimeout(sendWhenReady, 150);
       } else if (text) {
         // WebSocket already open, send immediately
         appendMessage("user", text);
@@ -533,7 +568,7 @@
         // Resume audio context (required for audio playback)
         await audioContext.resume();
         
-        // Send custom instructions if available
+        // Send custom instructions FIRST before any audio/text
         const customInstr = getCustomInstructions();
         if (customInstr) {
           const payload = {
@@ -541,7 +576,10 @@
             instructions: customInstr
           };
           socket.send(JSON.stringify(payload));
-          console.log("Sent custom instructions to server");
+          console.log("Sent custom instructions to server:", customInstr.substring(0, 100) + "...");
+          
+          // Wait a moment for backend to process instructions before starting audio
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
         
         // Start microphone if voice mode requested
@@ -757,14 +795,77 @@
     }
     
     /**
+     * Processes dynamic placeholders in instructions.
+     * Supported placeholders:
+     * - {{TODAY}} - Current date in format "7 November 2025"
+     * - {{TODAY_IT}} - Current date in Italian format "7 novembre 2025"
+     * - {{TIME}} - Current time in format "14:30"
+     * - {{DATETIME}} - Full date and time "7 November 2025, 14:30"
+     * - {{DAY}} - Day of week "Thursday"
+     * - {{DAY_IT}} - Day of week in Italian "giovedì"
+     * 
+     * @param {string} instructions - Instructions text with placeholders
+     * @returns {string} Instructions with placeholders replaced
+     */
+    function processPlaceholders(instructions) {
+      if (!instructions) return instructions;
+      
+      const now = new Date();
+      
+      // Month names
+      const monthsEN = ["January", "February", "March", "April", "May", "June", 
+                        "July", "August", "September", "October", "November", "December"];
+      const monthsIT = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+                        "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
+      
+      // Day names
+      const daysEN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const daysIT = ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato"];
+      
+      // Format date components
+      const day = now.getDate();
+      const month = now.getMonth();
+      const year = now.getFullYear();
+      const dayOfWeek = now.getDay();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      
+      // Build replacement values
+      const replacements = {
+        '{{TODAY}}': `${day} ${monthsEN[month]} ${year}`,
+        '{{TODAY_IT}}': `${day} ${monthsIT[month]} ${year}`,
+        '{{TIME}}': `${hours}:${minutes}`,
+        '{{DATETIME}}': `${day} ${monthsEN[month]} ${year}, ${hours}:${minutes}`,
+        '{{DATETIME_IT}}': `${day} ${monthsIT[month]} ${year}, ${hours}:${minutes}`,
+        '{{DAY}}': daysEN[dayOfWeek],
+        '{{DAY_IT}}': daysIT[dayOfWeek],
+        '{{YEAR}}': String(year),
+        '{{MONTH}}': monthsEN[month],
+        '{{MONTH_IT}}': monthsIT[month]
+      };
+      
+      // Replace all placeholders
+      let processed = instructions;
+      for (const [placeholder, value] of Object.entries(replacements)) {
+        processed = processed.replaceAll(placeholder, value);
+      }
+      
+      return processed;
+    }
+    
+    /**
      * Gets custom instructions to send with WebSocket connection.
      * Called when establishing WebSocket connection.
+     * Processes dynamic placeholders before returning.
      * 
-     * @returns {string|null} Custom instructions or null if using default
+     * @returns {string|null} Custom instructions with placeholders replaced, or null if using default
      */
     function getCustomInstructions() {
       const saved = localStorage.getItem("customInstructions");
-      return saved || null;
+      if (!saved) return null;
+      
+      // Process placeholders to get dynamic values
+      return processPlaceholders(saved);
     }
 
     // ============================================================================
@@ -1068,6 +1169,70 @@
     #instructionsTextarea:focus {
       border-color: #673ab7;
       box-shadow: 0 0 0 2px rgba(103, 58, 183, 0.1);
+    }
+    
+    /* Placeholders info section */
+    .placeholders-info {
+      background: #f8f4ff;
+      border: 1px solid #e1d5f0;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 13px;
+    }
+    
+    .placeholders-info details {
+      cursor: pointer;
+    }
+    
+    .placeholders-info summary {
+      font-weight: 600;
+      color: #673ab7;
+      padding: 4px;
+      user-select: none;
+    }
+    
+    .placeholders-info summary:hover {
+      color: #512da8;
+    }
+    
+    .placeholders-list {
+      margin-top: 12px;
+      color: #333;
+    }
+    
+    .placeholders-list p {
+      margin: 8px 0;
+      font-weight: 600;
+    }
+    
+    .placeholders-list ul {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+    
+    .placeholders-list li {
+      margin: 6px 0;
+      line-height: 1.6;
+    }
+    
+    .placeholders-list code {
+      background: #673ab7;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    .placeholder-example {
+      background: white;
+      border-left: 3px solid #673ab7;
+      padding: 12px;
+      margin-top: 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1.8;
     }
     
     /* Panel action buttons container */
