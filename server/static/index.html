@@ -164,19 +164,19 @@
         <!-- Chat message history display area -->
         <div id="chatHistory"></div>
         
-        <!-- Chat input area with text field and microphone button -->
+        <!-- Chat input area with microphone, text field, and send button -->
         <div id="chatInputArea">
+          <!-- Microphone button for voice interaction (left side) -->
+          <button id="micBtn" onclick="toggleMic()" title="Parla con il bot">
+            <span aria-label="Microfono" role="img">🎤</span>
+          </button>
+          
           <!-- Text input field for typing messages -->
           <input type="text" id="chatInput" placeholder="Scrivi un messaggio..." autocomplete="off" />
           
-          <!-- Send button (currently commented out) -->
-<!--          <button id="sendBtn" onclick="sendTextMessage()" title="Invia messaggio">
+          <!-- Send button for text messages (right side) -->
+          <button id="sendBtn" onclick="sendTextMessage()" title="Invia messaggio">
             <span aria-label="Invia" role="img">📤</span>
-          </button>
--->
-          <!-- Microphone button for voice interaction -->
-          <button id="micBtn" onclick="toggleMic()" title="Parla con il bot">
-            <span aria-label="Microfono" role="img">🎤</span>
           </button>
         </div>
       </div>
@@ -426,6 +426,7 @@
         const sendWhenReady = () => {
           if (socket.readyState === WebSocket.OPEN) {
             appendMessage("user", text);
+            showTypingIndicator();  // Show typing indicator while bot prepares response
             
             // Create message payload in Voice Live API format
             const payload = {
@@ -448,6 +449,7 @@
       } else if (text) {
         // WebSocket already open, send immediately
         appendMessage("user", text);
+        showTypingIndicator();  // Show typing indicator while bot prepares response
         
         const payload = {
           type: "conversation.item.create",
@@ -559,6 +561,35 @@
     }
     
     /**
+     * Shows a typing indicator ("...") to indicate bot is preparing response.
+     * Returns the indicator element so it can be removed later.
+     * 
+     * @returns {HTMLElement} The typing indicator element
+     */
+    function showTypingIndicator() {
+      const chatHistory = document.getElementById("chatHistory");
+      const typingDiv = document.createElement("div");
+      typingDiv.className = "chatBubble botBubble typing-indicator";
+      typingDiv.id = "typingIndicator";
+      typingDiv.innerHTML = '<span class="typing-dots"><span>.</span><span>.</span><span>.</span></span>';
+      
+      chatHistory.appendChild(typingDiv);
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+      
+      return typingDiv;
+    }
+    
+    /**
+     * Removes the typing indicator from the chat.
+     */
+    function hideTypingIndicator() {
+      const indicator = document.getElementById("typingIndicator");
+      if (indicator) {
+        indicator.remove();
+      }
+    }
+    
+    /**
      * Appends a message to the chat history UI with rich formatting.
      * 
      * @param {string} sender - "user" or "bot" to determine styling
@@ -566,6 +597,12 @@
      */
     function appendMessage(sender, text) {
       const chatHistory = document.getElementById("chatHistory");
+      
+      // Remove typing indicator if bot is responding
+      if (sender === "bot") {
+        hideTypingIndicator();
+      }
+      
       const msgDiv = document.createElement("div");
       
       // Apply appropriate styling based on sender
@@ -709,24 +746,26 @@
             // User voice transcription (what user said via microphone)
             if (msg.Kind === "UserVoiceTranscription") {
               appendMessage("user", msg.Text);
+              showTypingIndicator();  // Show typing indicator while bot prepares response
             }
             
             // Bot voice transcription (what bot said via audio)
             if (msg.Kind === "BotVoiceTranscription") {
-              appendMessage("bot", msg.Text);
+              appendMessage("bot", msg.Text);  // hideTypingIndicator called inside appendMessage
             }
             
             // Bot text response (for text-only chat)
             if (msg.Kind === "BotResponse") {
-              appendMessage("bot", msg.Text);
+              appendMessage("bot", msg.Text);  // hideTypingIndicator called inside appendMessage
             }
             
             // Legacy message types (backwards compatibility)
             if (msg.Kind === "Transcription") {
               appendMessage("user", msg.Text);
+              showTypingIndicator();  // Show typing indicator while bot prepares response
             }
             if (msg.Kind === "UserTranscription") {
-              appendMessage("bot", msg.Text);
+              appendMessage("bot", msg.Text);  // hideTypingIndicator called inside appendMessage
             }
             
           } else if (event.data instanceof ArrayBuffer) {
@@ -1021,16 +1060,44 @@
        Styling for the chat container, messages, and input area
        ============================================================================ -->
   <style>
+    /* CSS variables for mobile browser UI compensation */
+    :root {
+      --mobile-browser-ui-height: 80px; /* Reserve space for mobile browser UI */
+    }
+    
     /* Main page background - WhatsApp-inspired beige color */
     body {
       background: #ece5dd;
       font-family: 'Segoe UI', Arial, sans-serif;
       margin: 0;
       padding: 0;
+      min-height: 100vh;
+      padding-bottom: 60px; /* Space for footer */
+      box-sizing: border-box;
+    }
+    
+    /* Page title */
+    h1 {
+      text-align: center;
+      margin: 20px 0 10px 0;
+      font-size: 2rem;
+      color: #333;
+    }
+    
+    /* Subtitle */
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 20px;
+      padding: 0 20px;
+    }
+    
+    /* Main controls container */
+    .controls {
       display: flex;
       justify-content: center;
       align-items: center;
-      height: 100vh;
+      padding: 0 10px;
     }
     
     /* Chat window container - white card with shadow */
@@ -1038,13 +1105,55 @@
       background: #fff;
       border-radius: 10px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      width: 400px;
-      max-width: 100vw;
+      width: 100%;
+      max-width: 500px;
+      margin: 0 auto 20px auto;
       display: flex;
       flex-direction: column;
-      height: calc(80vh - 40px);  /* 80% viewport height minus margins */
-      margin-bottom: 48px;
+      height: calc(100vh - 250px);  /* Full height minus header/footer */
+      max-height: 700px;  /* Maximum height for large screens */
+      min-height: 400px;
       overflow: hidden;
+    }
+    
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+      body {
+        padding-bottom: 0;  /* Remove extra padding on mobile */
+      }
+      
+      h1 {
+        font-size: 1.5rem;
+        margin: 10px 0 5px 0;  /* Reduce top/bottom margins */
+      }
+      
+      .subtitle {
+        font-size: 0.85rem;
+        margin-bottom: 10px;  /* Reduce bottom margin */
+        padding: 0 10px;
+      }
+      
+      #chatContainer {
+        width: calc(100% - 20px);
+        margin: 0 10px;
+        border-radius: 8px;
+        /* Account for mobile browser UI (address bar, navigation ~110px) */
+        /* Title ~40px + Subtitle ~35px + Footer ~40px + Input ~60px + Browser UI ~110px + Margins ~25px = ~340px */
+        height: calc(100vh - 340px);
+        max-height: calc(100vh - 340px);
+        min-height: 200px;  /* Smaller minimum height on mobile */
+      }
+      
+      #pageFooter {
+        padding: 6px 0;  /* Reduce footer padding on mobile */
+      }
+      
+      #chatInputArea {
+        padding: 8px;  /* Reduce input area padding on mobile */
+        gap: 6px;
+        /* Extra padding for mobile browser UI */
+        padding-bottom: max(12px, calc(env(safe-area-inset-bottom) + 8px));
+      }
     }
     
     /* Chat message history area - scrollable with WhatsApp-style background */
@@ -1141,6 +1250,48 @@
       margin: 4px 0;
     }
     
+    /* Typing indicator - animated dots to show bot is preparing response */
+    .typing-indicator {
+      padding: 10px 16px !important;
+      min-width: 60px;
+    }
+    
+    .typing-dots {
+      display: inline-flex;
+      gap: 4px;
+      align-items: center;
+    }
+    
+    .typing-dots span {
+      font-size: 24px;
+      line-height: 1;
+      animation: typingDot 1.4s infinite;
+      opacity: 0.4;
+    }
+    
+    .typing-dots span:nth-child(1) {
+      animation-delay: 0s;
+    }
+    
+    .typing-dots span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+    
+    .typing-dots span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+    
+    @keyframes typingDot {
+      0%, 60%, 100% {
+        opacity: 0.4;
+        transform: translateY(0);
+      }
+      30% {
+        opacity: 1;
+        transform: translateY(-4px);
+      }
+    }
+    
     /* Chat input area - contains text field and buttons */
     #chatInputArea {
       display: flex;
@@ -1148,6 +1299,8 @@
       background: #f7f7f7;
       border-top: 1px solid #e1e1e1;
       gap: 8px;
+      flex-shrink: 0; /* Prevent shrinking */
+      padding-bottom: max(12px, env(safe-area-inset-bottom)); /* Safe area for iOS */
     }
     
     /* Text input field styling */
@@ -1156,8 +1309,28 @@
       padding: 8px 12px;
       border-radius: 20px;
       border: 1px solid #e1e1e1;
-      font-size: 16px;
+      font-size: 16px; /* Prevent iOS zoom on focus */
       outline: none;
+      -webkit-appearance: none; /* Remove iOS styling */
+      appearance: none;
+    }
+    
+    /* Mobile input fixes */
+    @media (max-width: 768px) {
+      #chatInputArea {
+        padding: 10px 8px;
+      }
+      
+      #chatInput {
+        font-size: 16px; /* Minimum 16px to prevent iOS zoom */
+        padding: 10px 12px;
+      }
+      
+      #sendBtn, #micBtn {
+        width: 44px; /* Larger touch targets on mobile */
+        height: 44px;
+        flex-shrink: 0;
+      }
     }
     
     /* Send and microphone button base styling */
@@ -1171,6 +1344,16 @@
       font-size: 18px;
       cursor: pointer;
       transition: background 0.3s ease, transform 0.1s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;  /* Remove inherited padding for proper centering */
+    }
+    
+    /* Send button hover effect */
+    #sendBtn:hover {
+      background: #128c7e;  /* Darker green on hover */
+      transform: scale(1.05);
     }
     
     /* Microphone button hover effect */
@@ -1289,6 +1472,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: 0;  /* Remove inherited padding for proper centering */
     }
 
     /* Configuration button hover effect - darker blue with larger shadow */
@@ -1326,6 +1510,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: 0;  /* Remove inherited padding for proper centering */
     }
 
     #instructionsToggleBtn:hover {

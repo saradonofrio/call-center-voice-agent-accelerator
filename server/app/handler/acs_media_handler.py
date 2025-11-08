@@ -75,6 +75,9 @@ def session_config(azure_search_config=None):
             # AI system instructions (personality and behavior)
             "instructions": base_instructions,
             
+            # Response token limits - increase for longer responses
+            "max_response_output_tokens": 16000,  # Allow longer responses (default: 4096)
+            
             # Voice Activity Detection (VAD) configuration
             "turn_detection": {
                 "type": "azure_semantic_vad",  # Azure's semantic VAD model
