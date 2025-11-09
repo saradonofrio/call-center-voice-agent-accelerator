@@ -29,6 +29,17 @@
     h1 {
       font-size: 2rem;
       margin-bottom: 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+    
+    /* Header logo styling */
+    .header-logo {
+      height: 40px;
+      width: auto;
+      vertical-align: middle;
     }
 
     /* Subtitle text styling */
@@ -99,8 +110,11 @@
        Page header, configuration button, and chat interface
        ============================================================================ -->
        
-  <!-- Page title -->
-  <h1>Farmacia Pepe</h1>
+  <!-- Page title with logo -->
+  <h1>
+    <img src="/static/LogoChatBot.png" alt="Logo" class="header-logo">
+    Farmacia Pepe
+  </h1>
   
   <!-- Configuration button - navigates to document upload page -->
   <button id="configBtn" onclick="window.location.href='/static/config.html'" title="Configure Grounding Documents">
@@ -164,19 +178,26 @@
         <!-- Chat message history display area -->
         <div id="chatHistory"></div>
         
-        <!-- Chat input area with microphone, text field, and send button -->
+        <!-- Chat input area with text field and send button -->
         <div id="chatInputArea">
-          <!-- Microphone button for voice interaction (left side) -->
-          <button id="micBtn" onclick="toggleMic()" title="Parla con il bot">
-            <span aria-label="Microfono" role="img">🎤</span>
-          </button>
-          
           <!-- Text input field for typing messages -->
           <input type="text" id="chatInput" placeholder="Scrivi un messaggio..." autocomplete="off" />
           
           <!-- Send button for text messages (right side) -->
           <button id="sendBtn" onclick="sendTextMessage()" title="Invia messaggio">
             <span aria-label="Invia" role="img">➤</span>
+          </button>
+        </div>
+        
+        <!-- Microphone button centered below input area -->
+        <div id="micButtonContainer">
+          <button id="micBtn" onclick="toggleMic()" title="Parla con il bot">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="9" y="2" width="6" height="11" rx="3" stroke="white" stroke-width="2" fill="white"/>
+              <path d="M5 10C5 10 5 14 12 14C19 14 19 10 19 10" stroke="white" stroke-width="2" stroke-linecap="round"/>
+              <line x1="12" y1="14" x2="12" y2="19" stroke="white" stroke-width="2" stroke-linecap="round"/>
+              <line x1="9" y1="19" x2="15" y2="19" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            </svg>
           </button>
         </div>
       </div>
@@ -1128,6 +1149,11 @@
       h1 {
         font-size: 1.5rem;
         margin: 10px 0 5px 0;  /* Reduce top/bottom margins */
+        gap: 8px;  /* Smaller gap on mobile */
+      }
+      
+      .header-logo {
+        height: 32px;  /* Smaller logo on mobile */
       }
       
       .subtitle {
@@ -1295,15 +1321,24 @@
       }
     }
     
-    /* Chat input area - contains text field and buttons */
+    /* Chat input area - contains text field and send button */
     #chatInputArea {
       display: flex;
-      padding: 12px;
+      padding: 12px 12px 8px 12px;
       background: #f7f7f7;
       border-top: 1px solid #e1e1e1;
       gap: 8px;
       flex-shrink: 0; /* Prevent shrinking */
-      padding-bottom: max(12px, env(safe-area-inset-bottom)); /* Safe area for iOS */
+    }
+    
+    /* Microphone button container - centered below input */
+    #micButtonContainer {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 12px;
+      background: #f7f7f7;
+      padding-bottom: max(20px, env(safe-area-inset-bottom)); /* Safe area for iOS */
     }
     
     /* Text input field styling */
@@ -1321,7 +1356,7 @@
     /* Mobile input fixes */
     @media (max-width: 768px) {
       #chatInputArea {
-        padding: 10px 8px;
+        padding: 10px 8px 6px 8px;
       }
       
       #chatInput {
@@ -1329,19 +1364,34 @@
         padding: 10px 12px;
       }
       
-      #sendBtn, #micBtn {
+      #sendBtn {
         width: 44px; /* Larger touch targets on mobile */
         height: 44px;
         flex-shrink: 0;
       }
+      
+      #micBtn {
+        width: 70px; /* Larger microphone on mobile */
+        height: 70px;
+      }
+      
+      #micBtn svg {
+        width: 36px;
+        height: 36px;
+      }
+      
+      #micButtonContainer {
+        padding: 10px;
+        padding-bottom: max(20px, calc(env(safe-area-inset-bottom) + 10px));
+      }
     }
     
-    /* Send and microphone button base styling */
-    #sendBtn, #micBtn {
+    /* Send button styling */
+    #sendBtn {
       background: #25d366;  /* WhatsApp green */
       color: #fff;
       border: none;
-      border-radius: 50%;  /* Circular buttons */
+      border-radius: 50%;  /* Circular button */
       width: 40px;
       height: 40px;
       font-size: 18px;
@@ -1350,7 +1400,31 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: 0;
+      flex-shrink: 0;
+    }
+    
+    /* Microphone button - larger and centered */
+    #micBtn {
+      background: linear-gradient(135deg, #32d583 0%, #25d366 50%, #20c95a 100%);
+      color: #fff;
+      border: none;
+      border-radius: 50%;  /* Circular button */
+      width: 64px;
+      height: 64px;
+      cursor: pointer;
+      transition: all 0.3s ease, transform 0.1s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       padding: 0;  /* Remove inherited padding for proper centering */
+      box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
+    }
+    
+    #micBtn svg {
+      width: 32px;
+      height: 32px;
+      transition: transform 0.3s ease;
     }
     
     /* Send button hover effect */
@@ -1361,19 +1435,24 @@
     
     /* Microphone button hover effect */
     #micBtn:hover {
-      background: #128c7e;  /* Darker green on hover */
+      background: linear-gradient(135deg, #20c95a 0%, #1db852 50%, #18a647 100%);
       transform: scale(1.05);
+      box-shadow: 0 6px 16px rgba(37, 211, 102, 0.4);
+    }
+    
+    #micBtn:hover svg {
+      transform: scale(1.1);
     }
     
     /* Microphone button ACTIVE state - RED to indicate recording */
     #micBtn.active {
-      background: #e53935;  /* Red - recording indicator */
+      background: linear-gradient(135deg, #f44336 0%, #e53935 50%, #d32f2f 100%);
       animation: pulse 1.5s infinite;
     }
     
     /* Microphone button active hover - darker red */
     #micBtn.active:hover {
-      background: #c62828;  /* Darker red on hover when active */
+      background: linear-gradient(135deg, #d32f2f 0%, #c62828 50%, #b71c1c 100%);
     }
     
     /* Pulsing animation for active microphone */
