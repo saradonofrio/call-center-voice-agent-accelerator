@@ -1,4 +1,6 @@
 # Call Center Voice Agent Accelerator with Azure Voice Live API
+
+> **✨ Nuovo**: I test "Simulazione Utenti" vengono ora salvati automaticamente su Azure Storage in formato JSON! Vedi [docs/TEST_LOGS_SETUP.md](docs/TEST_LOGS_SETUP.md) per i dettagli.
 | [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Azure-Samples/call-center-voice-agent-accelerator) | [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/Azure-Samples/call-center-voice-agent-accelerator)
 |---|---|
 
@@ -178,7 +180,17 @@ To change the `azd` parameters from the default values, follow the steps [here](
 
 After deployment, you can verify that your Voice Agent is running correctly using either the Web Client (for quick testing) or the ACS Phone Client (for simulating a real-world call center scenario).
 
-🌐 Web Client (Test Mode)
+### 🧪 Test Bot - Simulazione Utenti
+
+Testa automaticamente il bot con conversazioni simulate. Accedi a `/static/test-bot.html` per:
+- Simulare dialoghi con diversi tipi di utenti (Collaborativo, Fuori Tema, Malevolo)
+- Valutare automaticamente le risposte del bot
+- Misurare accuratezza, resistenza agli attacchi e mantenimento del contesto
+- **Salvare automaticamente i risultati** su Azure Storage in formato JSON
+
+**I risultati dei test vengono salvati automaticamente nel container `testlogs` su Azure Storage** per analisi successive. Vedi [docs/TEST_LOGS_SETUP.md](docs/TEST_LOGS_SETUP.md) per maggiori dettagli.
+
+### 🌐 Web Client (Test Mode)
 
 Use this browser-based client to confirm your Container App is up and responding.
 

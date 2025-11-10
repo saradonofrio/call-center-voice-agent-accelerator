@@ -894,6 +894,9 @@
       // Run test simulation
       const results = await simulateDialogs(dialogCount, turnsPerDialog, percentages);
       
+      // Save test results to Azure Storage
+      await saveTestResults(results, dialogCount, turnsPerDialog, percentages);
+      
       // Show results
       document.getElementById('progressSection').style.display = 'none';
       document.getElementById('resultsSection').style.display = 'block';
@@ -1267,6 +1270,56 @@ JSON:`;
       results.metrics.contextRetention = Math.round(85 + Math.random() * 10); // Simulated 85-95%
       results.metrics.manipulationResistance = Math.round(75 + Math.random() * 15); // Simulated 75-90%
       results.metrics.appropriateResponses = results.metrics.accuracy;
+    }
+
+    // ============================================================================
+    // SAVE TEST RESULTS TO AZURE STORAGE
+    // ============================================================================
+    
+    async function saveTestResults(results, dialogCount, turnsPerDialog, percentages) {
+      try {
+        // Prepare test data for storage
+        const testData = {
+          timestamp: new Date().toISOString(),
+          configuration: {
+            dialogCount: dialogCount,
+            turnsPerDialog: turnsPerDialog,
+            userTypeDistribution: {
+              collaborative: percentages.collaborative,
+              offtopic: percentages.offtopic,
+              malicious: percentages.malicious
+            }
+          },
+          metrics: results.metrics,
+          dialogs: results.dialogs,
+          criticalIssues: results.criticalIssues,
+          summary: {
+            totalDialogs: results.dialogs.length,
+            totalTurns: results.metrics.totalTurns,
+            successRate: `${results.metrics.accuracy}%`,
+            criticalIssuesCount: results.criticalIssues.length
+          }
+        };
+
+        // Send to API endpoint
+        const response = await fetch('/api/test-logs', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(testData)
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('✅ Test results saved to Azure Storage:', result.blob_name);
+        } else {
+          const error = await response.json();
+          console.error('❌ Failed to save test results:', error);
+        }
+      } catch (error) {
+        console.error('❌ Error saving test results:', error);
+      }
     }
 
     // ============================================================================

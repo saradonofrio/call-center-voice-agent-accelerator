@@ -721,6 +721,105 @@ async def create_indexer():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/test-logs", methods=["POST"])
+@rate_limit(max_requests=RATE_LIMIT_API_COUNT, window_seconds=RATE_LIMIT_API_WINDOW)
+async def save_test_logs():
+    """
+    Save user simulation test results to Azure Blob Storage.
+    
+    **Authentication**: None required (public endpoint for testing)
+    
+    Receives test results from the test-bot.html page and saves them 
+    to Azure Blob Storage in the 'TestLogs' container as JSON files.
+    
+    Request Body:
+        JSON object with test results containing:
+        - timestamp: Test execution timestamp
+        - configuration: Test configuration (dialog count, turns, percentages)
+        - metrics: Test metrics (accuracy, context retention, etc.)
+        - dialogs: Array of dialog results
+        - criticalIssues: Array of critical issues found
+    
+    Returns:
+        JSON: Save result with status and blob name
+        200 OK: Test logs saved successfully
+        400 Bad Request: Invalid request body
+        500 Internal Server Error: Save failure
+    """
+    logger = logging.getLogger("save_test_logs")
+    
+    try:
+        # Get JSON body from request
+        test_data = await request.get_json()
+        
+        if not test_data:
+            return jsonify({"error": "No test data provided"}), 400
+        
+        # Add server-side timestamp if not present
+        if 'timestamp' not in test_data:
+            from datetime import datetime
+            test_data['timestamp'] = datetime.utcnow().isoformat() + 'Z'
+        
+        # Generate blob name based on timestamp
+        from datetime import datetime
+        timestamp_str = test_data.get('timestamp', datetime.utcnow().isoformat() + 'Z')
+        # Clean timestamp for filename (remove special chars)
+        clean_timestamp = timestamp_str.replace(':', '-').replace('.', '-')
+        blob_name = f"test-{clean_timestamp}.json"
+        
+        # Import Azure Storage Blob client
+        from azure.storage.blob import BlobServiceClient
+        import asyncio
+        
+        # Get connection string from config
+        connection_string = app.config["AZURE_STORAGE_CONNECTION_STRING"]
+        if not connection_string:
+            logger.error("AZURE_STORAGE_CONNECTION_STRING not configured")
+            return jsonify({"error": "Azure Storage not configured"}), 500
+        
+        # Function to upload blob (sync operation wrapped for async)
+        def upload_to_blob():
+            # Create blob service client
+            blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+            
+            # Get or create TestLogs container
+            container_name = "testlogs"
+            container_client = blob_service_client.get_container_client(container_name)
+            
+            # Create container if it doesn't exist
+            try:
+                container_client.create_container()
+                logger.info(f"Created container: {container_name}")
+            except Exception as e:
+                # Container might already exist, which is fine
+                if "ContainerAlreadyExists" not in str(e):
+                    logger.warning(f"Container creation note: {e}")
+            
+            # Upload test data as JSON blob
+            blob_client = container_client.get_blob_client(blob_name)
+            test_json = json.dumps(test_data, indent=2, ensure_ascii=False)
+            blob_client.upload_blob(test_json, overwrite=True)
+            
+            return container_name
+        
+        # Run sync operation in executor
+        loop = asyncio.get_event_loop()
+        container_name = await loop.run_in_executor(None, upload_to_blob)
+        
+        logger.info(f"Test logs saved successfully: {blob_name}")
+        
+        return jsonify({
+            "status": "success",
+            "message": "Test logs saved successfully",
+            "blob_name": blob_name,
+            "container": container_name
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"Error saving test logs: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/indexer/run", methods=["POST"])
 @rate_limit(max_requests=RATE_LIMIT_ADMIN_COUNT, window_seconds=RATE_LIMIT_ADMIN_WINDOW)
 # Public for testing - no authentication required
