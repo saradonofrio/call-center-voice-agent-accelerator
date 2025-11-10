@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Test Bot - Simulazione Utenti</title>
+  <title>Test Bot - Simulazione Utenti v3.0</title>
+  <!-- Version 3.0 - COMPLETE REWRITE - No WebSocket at all - Deployed: 2025-11-09 -->
   <style>
     * {
       margin: 0;
@@ -540,6 +541,9 @@
   </div>
 
   <script>
+    console.log('✅✅✅ Test Bot v3.0 JavaScript loaded - 2025-11-09 ✅✅✅');
+    console.log('NO WEBSOCKET CODE IN THIS VERSION!');
+    
     // ============================================================================
     // GLOBAL VARIABLES
     // ============================================================================
@@ -589,6 +593,9 @@
     // ============================================================================
     
     async function startTest() {
+      console.log('🚀🚀🚀 Starting test - Version 3.0 - PURE SIMULATION ONLY 🚀🚀🚀');
+      console.log('This version does NOT use WebSocket at all!');
+      
       const dialogCount = parseInt(document.getElementById('dialogCount').value);
       const turnsPerDialog = parseInt(document.getElementById('turnsPerDialog').value);
       const percentages = {
@@ -932,6 +939,21 @@
         case 'malicious': return 'Malevolo';
       }
     }
+    
+    // Add event listener to button as fallback
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('✅ DOM loaded, attaching button listener');
+      const btn = document.getElementById('startTestBtn');
+      if (btn) {
+        console.log('✅ Button found');
+        btn.addEventListener('click', function() {
+          console.log('🔵 Button clicked!');
+          startTest();
+        });
+      } else {
+        console.error('❌ Button not found!');
+      }
+    });
   </script>
 </body>
 </html>
