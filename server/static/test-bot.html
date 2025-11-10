@@ -419,6 +419,234 @@
     .back-button:hover {
       background: #5a6268;
     }
+
+    /* Historical Tests Styles */
+    .tab-container {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .tab {
+      padding: 12px 24px;
+      background: transparent;
+      border: none;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: #666;
+      border-bottom: 3px solid transparent;
+      transition: all 0.3s;
+    }
+
+    .tab:hover {
+      color: #667eea;
+    }
+
+    .tab.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .filter-section {
+      background: #f5f5f5;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .filter-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .filter-item {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .filter-item label {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .filter-item input,
+    .filter-item select {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+
+    .filter-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-secondary {
+      padding: 10px 20px;
+      background: #6c757d;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .btn-secondary:hover {
+      background: #5a6268;
+    }
+
+    .aggregate-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #667eea;
+      margin-bottom: 5px;
+    }
+
+    .stat-label {
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    .test-list {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .test-card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      transition: transform 0.2s;
+      cursor: pointer;
+    }
+
+    .test-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .test-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 15px;
+    }
+
+    .test-timestamp {
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .test-accuracy {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #667eea;
+    }
+
+    .test-config {
+      display: flex;
+      gap: 20px;
+      font-size: 0.9rem;
+      color: #666;
+      margin-bottom: 10px;
+    }
+
+    .test-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    .test-metric {
+      text-align: center;
+    }
+
+    .test-metric-value {
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #667eea;
+    }
+
+    .test-metric-label {
+      font-size: 0.8rem;
+      color: #666;
+      margin-top: 5px;
+    }
+
+    .loading-spinner {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #999;
+    }
+
+    .empty-state-icon {
+      font-size: 4rem;
+      margin-bottom: 20px;
+    }
+
+    .test-details {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 2px solid #e0e0e0;
+      display: none;
+    }
+
+    .test-details.expanded {
+      display: block;
+    }
+
+    .expand-icon {
+      transition: transform 0.3s;
+      display: inline-block;
+    }
+
+    .expand-icon.rotated {
+      transform: rotate(180deg);
+    }
   </style>
 </head>
 <body>
@@ -430,6 +658,15 @@
 
     <div class="content">
       <a href="/static/index.html" class="back-button">← Torna alla Chat</a>
+
+      <!-- Tab Navigation -->
+      <div class="tab-container">
+        <button class="tab active" onclick="switchTab('new-test')">🚀 Nuovo Test</button>
+        <button class="tab" onclick="switchTab('history')">📊 Storico Test</button>
+      </div>
+
+      <!-- New Test Tab -->
+      <div id="new-test-tab" class="tab-content active">
 
       <!-- Configuration Section -->
       <div class="section">
@@ -533,6 +770,71 @@
           <div class="section-title">💬 Dialoghi Simulati</div>
           <div class="dialog-list" id="dialogList">
             <!-- Dialogs will be populated here -->
+          </div>
+        </div>
+      </div>
+      </div>
+
+      <!-- History Tab -->
+      <div id="history-tab" class="tab-content">
+        <!-- Aggregate Statistics -->
+        <div class="section">
+          <div class="section-title">📈 Statistiche Aggregate</div>
+          <div id="aggregateStats" class="aggregate-stats">
+            <!-- Stats will be populated here -->
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="section">
+          <div class="section-title">🔍 Filtra Test</div>
+          <div class="filter-section">
+            <div class="filter-grid">
+              <div class="filter-item">
+                <label>Data Inizio</label>
+                <input type="date" id="filterDateFrom">
+              </div>
+              <div class="filter-item">
+                <label>Data Fine</label>
+                <input type="date" id="filterDateTo">
+              </div>
+              <div class="filter-item">
+                <label>Accuratezza Min (%)</label>
+                <input type="number" id="filterAccuracyMin" min="0" max="100" placeholder="0">
+              </div>
+              <div class="filter-item">
+                <label>Accuratezza Max (%)</label>
+                <input type="number" id="filterAccuracyMax" min="0" max="100" placeholder="100">
+              </div>
+              <div class="filter-item">
+                <label>Num. Dialoghi</label>
+                <input type="number" id="filterDialogCount" min="1" placeholder="Tutti">
+              </div>
+              <div class="filter-item">
+                <label>Problemi Critici</label>
+                <select id="filterCriticalIssues">
+                  <option value="all">Tutti</option>
+                  <option value="with">Solo con problemi</option>
+                  <option value="without">Senza problemi</option>
+                </select>
+              </div>
+            </div>
+            <div class="filter-buttons">
+              <button class="btn-primary" onclick="applyFilters()">🔍 Applica Filtri</button>
+              <button class="btn-secondary" onclick="resetFilters()">🔄 Reset</button>
+              <button class="btn-secondary" onclick="refreshHistory()">⟳ Aggiorna</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Test List -->
+        <div class="section">
+          <div class="section-title">📋 Test Eseguiti</div>
+          <div id="testList" class="test-list">
+            <div class="loading-spinner">
+              <div class="spinner"></div>
+              <p>Caricamento test in corso...</p>
+            </div>
           </div>
         </div>
       </div>
@@ -1418,6 +1720,333 @@ JSON:`;
         case 'offtopic': return 'Fuori Tema';
         case 'malicious': return 'Malevolo';
       }
+    }
+
+    // ============================================================================
+    // TAB MANAGEMENT
+    // ============================================================================
+    
+    function switchTab(tabName) {
+      // Update tab buttons
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+      event.target.classList.add('active');
+      
+      // Update tab content
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      document.getElementById(`${tabName}-tab`).classList.add('active');
+      
+      // Load history when switching to history tab
+      if (tabName === 'history') {
+        loadTestHistory();
+      }
+    }
+
+    // ============================================================================
+    // HISTORICAL TESTS - DATA MANAGEMENT
+    // ============================================================================
+    
+    let allTests = [];
+    let filteredTests = [];
+
+    async function loadTestHistory() {
+      const testList = document.getElementById('testList');
+      testList.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Caricamento test in corso...</p></div>';
+      
+      try {
+        const response = await fetch('/api/test-logs');
+        
+        if (!response.ok) {
+          throw new Error('Errore nel caricamento dei test');
+        }
+        
+        const data = await response.json();
+        allTests = data.tests || [];
+        filteredTests = [...allTests];
+        
+        displayAggregateStats(allTests);
+        displayTestList(filteredTests);
+        
+      } catch (error) {
+        console.error('Error loading test history:', error);
+        testList.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <h3>Errore nel caricamento</h3>
+            <p>${error.message}</p>
+            <button class="btn-primary" onclick="loadTestHistory()" style="margin-top: 20px;">🔄 Riprova</button>
+          </div>
+        `;
+      }
+    }
+
+    function displayAggregateStats(tests) {
+      const statsContainer = document.getElementById('aggregateStats');
+      
+      if (tests.length === 0) {
+        statsContainer.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #999;">Nessun test disponibile</p>';
+        return;
+      }
+      
+      // Calculate aggregate statistics
+      const totalTests = tests.length;
+      const avgAccuracy = Math.round(tests.reduce((sum, t) => sum + t.metrics.accuracy, 0) / totalTests);
+      const avgContext = Math.round(tests.reduce((sum, t) => sum + t.metrics.contextRetention, 0) / totalTests);
+      const avgResistance = Math.round(tests.reduce((sum, t) => sum + t.metrics.manipulationResistance, 0) / totalTests);
+      const totalCritical = tests.reduce((sum, t) => sum + t.summary.criticalIssuesCount, 0);
+      const totalDialogs = tests.reduce((sum, t) => sum + t.summary.totalDialogs, 0);
+      
+      statsContainer.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-value">${totalTests}</div>
+          <div class="stat-label">Test Totali</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${avgAccuracy}%</div>
+          <div class="stat-label">Accuratezza Media</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${avgContext}%</div>
+          <div class="stat-label">Contesto Medio</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${avgResistance}%</div>
+          <div class="stat-label">Resistenza Media</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${totalCritical}</div>
+          <div class="stat-label">Problemi Critici</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${totalDialogs}</div>
+          <div class="stat-label">Dialoghi Totali</div>
+        </div>
+      `;
+    }
+
+    function displayTestList(tests) {
+      const testList = document.getElementById('testList');
+      
+      if (tests.length === 0) {
+        testList.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <h3>Nessun test trovato</h3>
+            <p>Nessun test corrisponde ai filtri selezionati</p>
+          </div>
+        `;
+        return;
+      }
+      
+      // Sort by timestamp descending (newest first)
+      tests.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      
+      testList.innerHTML = tests.map((test, index) => {
+        const date = new Date(test.timestamp);
+        const formattedDate = date.toLocaleString('it-IT', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        
+        const accuracyColor = test.metrics.accuracy >= 80 ? '#2e7d32' : 
+                             test.metrics.accuracy >= 60 ? '#f57c00' : '#d32f2f';
+        
+        const criticalBadge = test.summary.criticalIssuesCount > 0 
+          ? `<span style="color: #d32f2f; font-weight: bold;">⚠️ ${test.summary.criticalIssuesCount} Problemi Critici</span>`
+          : '<span style="color: #2e7d32;">✅ Nessun Problema</span>';
+        
+        return `
+          <div class="test-card" onclick="toggleTestDetails(${index})">
+            <div class="test-card-header">
+              <div>
+                <div class="test-timestamp">📅 ${formattedDate}</div>
+                <div class="test-config">
+                  <span>📊 ${test.configuration.dialogCount} dialoghi</span>
+                  <span>💬 ${test.configuration.turnsPerDialog} turni</span>
+                  <span>${criticalBadge}</span>
+                </div>
+              </div>
+              <div class="test-accuracy" style="color: ${accuracyColor}">
+                ${test.metrics.accuracy}%
+              </div>
+            </div>
+            
+            <div class="test-config">
+              <span>✅ ${test.configuration.userTypeDistribution.collaborative}% Collaborativo</span>
+              <span>❌ ${test.configuration.userTypeDistribution.offtopic}% Fuori Tema</span>
+              <span>⚠️ ${test.configuration.userTypeDistribution.malicious}% Malevolo</span>
+            </div>
+            
+            <div class="test-metrics">
+              <div class="test-metric">
+                <div class="test-metric-value">${test.metrics.contextRetention}%</div>
+                <div class="test-metric-label">Contesto</div>
+              </div>
+              <div class="test-metric">
+                <div class="test-metric-value">${test.metrics.manipulationResistance}%</div>
+                <div class="test-metric-label">Resistenza</div>
+              </div>
+              <div class="test-metric">
+                <div class="test-metric-value">${test.metrics.successfulTurns}/${test.metrics.totalTurns}</div>
+                <div class="test-metric-label">Risposte OK</div>
+              </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 10px; color: #667eea; font-weight: bold;">
+              <span class="expand-icon" id="expand-icon-${index}">▼</span> Clicca per vedere i dettagli
+            </div>
+            
+            <div class="test-details" id="test-details-${index}">
+              ${renderTestDetails(test)}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderTestDetails(test) {
+      let html = '';
+      
+      // Critical Issues
+      if (test.criticalIssues && test.criticalIssues.length > 0) {
+        html += `
+          <div style="background: #ffebee; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <h3 style="color: #d32f2f; margin-bottom: 10px;">🚨 Problemi Critici</h3>
+            ${test.criticalIssues.map(issue => `
+              <div style="padding: 10px; background: white; margin-bottom: 10px; border-radius: 4px; border-left: 4px solid #d32f2f;">
+                <strong>Dialogo #${issue.dialog} (${getUserTypeLabel(issue.type)})</strong><br>
+                ${escapeHtml(issue.issue)}
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+      
+      // Dialogs
+      html += '<h3 style="margin-bottom: 15px;">💬 Dialoghi</h3>';
+      html += test.dialogs.map(dialog => {
+        const typeColors = {
+          collaborative: '#2e7d32',
+          offtopic: '#f57c00',
+          malicious: '#d32f2f'
+        };
+        
+        return `
+          <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid ${typeColors[dialog.userType]}">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+              <strong>Dialogo #${dialog.number} - ${getUserTypeLabel(dialog.userType)}</strong>
+              <span style="color: ${typeColors[dialog.userType]}">
+                ✅ ${dialog.analysis.successfulTurns}/${dialog.turns.length} turni riusciti
+              </span>
+            </div>
+            
+            ${dialog.turns.map(turn => {
+              const scoreColor = turn.evaluation.score >= 80 ? '#2e7d32' : 
+                                turn.evaluation.score >= 60 ? '#f57c00' : '#d32f2f';
+              const evalIcon = turn.evaluation.appropriate ? '✅' : '❌';
+              
+              return `
+                <div style="background: white; padding: 12px; border-radius: 6px; margin-bottom: 10px;">
+                  <div style="color: #666; font-size: 0.9rem; margin-bottom: 5px;">
+                    <strong>Turno ${turn.turn}</strong> | 
+                    Score: <span style="color: ${scoreColor}; font-weight: bold;">${turn.evaluation.score}/100</span> ${evalIcon}
+                  </div>
+                  
+                  <div style="padding: 8px; background: #e3f2fd; border-radius: 4px; margin-bottom: 8px;">
+                    <strong>👤 Utente:</strong><br>
+                    ${escapeHtml(turn.userMessage)}
+                  </div>
+                  
+                  <div style="padding: 8px; background: #f3e5f5; border-radius: 4px;">
+                    <strong>🤖 Bot:</strong><br>
+                    ${escapeHtml(turn.botMessage)}
+                  </div>
+                  
+                  ${turn.evaluation.contextBreak ? '<div style="color: #f57c00; font-size: 0.85rem; margin-top: 5px;">⚠️ Possibile perdita di contesto</div>' : ''}
+                  ${turn.evaluation.critical ? '<div style="color: #d32f2f; font-size: 0.85rem; margin-top: 5px;">🚨 Problema critico: ' + escapeHtml(turn.evaluation.criticalReason) + '</div>' : ''}
+                </div>
+              `;
+            }).join('')}
+            
+            ${dialog.analysis.criticalIssue ? `
+              <div style="background: #ffebee; padding: 10px; border-radius: 6px; margin-top: 10px; color: #d32f2f;">
+                <strong>⚠️ Problema Critico:</strong> ${escapeHtml(dialog.analysis.criticalIssue)}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+      
+      return html;
+    }
+
+    function toggleTestDetails(index) {
+      const details = document.getElementById(`test-details-${index}`);
+      const icon = document.getElementById(`expand-icon-${index}`);
+      
+      if (details.classList.contains('expanded')) {
+        details.classList.remove('expanded');
+        icon.classList.remove('rotated');
+      } else {
+        details.classList.add('expanded');
+        icon.classList.add('rotated');
+      }
+    }
+
+    // ============================================================================
+    // FILTERS
+    // ============================================================================
+    
+    function applyFilters() {
+      const dateFrom = document.getElementById('filterDateFrom').value;
+      const dateTo = document.getElementById('filterDateTo').value;
+      const accMin = document.getElementById('filterAccuracyMin').value;
+      const accMax = document.getElementById('filterAccuracyMax').value;
+      const dialogCount = document.getElementById('filterDialogCount').value;
+      const criticalIssues = document.getElementById('filterCriticalIssues').value;
+      
+      filteredTests = allTests.filter(test => {
+        const testDate = new Date(test.timestamp);
+        
+        // Date filters
+        if (dateFrom && testDate < new Date(dateFrom)) return false;
+        if (dateTo && testDate > new Date(dateTo + 'T23:59:59')) return false;
+        
+        // Accuracy filters
+        if (accMin && test.metrics.accuracy < parseInt(accMin)) return false;
+        if (accMax && test.metrics.accuracy > parseInt(accMax)) return false;
+        
+        // Dialog count filter
+        if (dialogCount && test.configuration.dialogCount !== parseInt(dialogCount)) return false;
+        
+        // Critical issues filter
+        if (criticalIssues === 'with' && test.summary.criticalIssuesCount === 0) return false;
+        if (criticalIssues === 'without' && test.summary.criticalIssuesCount > 0) return false;
+        
+        return true;
+      });
+      
+      displayAggregateStats(filteredTests);
+      displayTestList(filteredTests);
+    }
+
+    function resetFilters() {
+      document.getElementById('filterDateFrom').value = '';
+      document.getElementById('filterDateTo').value = '';
+      document.getElementById('filterAccuracyMin').value = '';
+      document.getElementById('filterAccuracyMax').value = '';
+      document.getElementById('filterDialogCount').value = '';
+      document.getElementById('filterCriticalIssues').value = 'all';
+      
+      filteredTests = [...allTests];
+      displayAggregateStats(filteredTests);
+      displayTestList(filteredTests);
+    }
+
+    function refreshHistory() {
+      loadTestHistory();
     }
   </script>
 </body>

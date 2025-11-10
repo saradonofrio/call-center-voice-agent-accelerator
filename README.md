@@ -183,12 +183,20 @@ After deployment, you can verify that your Voice Agent is running correctly usin
 ### 🧪 Test Bot - Simulazione Utenti
 
 Testa automaticamente il bot con conversazioni simulate. Accedi a `/static/test-bot.html` per:
+
+**Nuovo Test:**
 - Simulare dialoghi con diversi tipi di utenti (Collaborativo, Fuori Tema, Malevolo)
 - Valutare automaticamente le risposte del bot
 - Misurare accuratezza, resistenza agli attacchi e mantenimento del contesto
 - **Salvare automaticamente i risultati** su Azure Storage in formato JSON
 
-**I risultati dei test vengono salvati automaticamente nel container `testlogs` su Azure Storage** per analisi successive. Vedi [docs/TEST_LOGS_SETUP.md](docs/TEST_LOGS_SETUP.md) per maggiori dettagli.
+**Storico Test (✨ Nuovo):**
+- Visualizzare statistiche aggregate di tutti i test eseguiti
+- Filtrare test per data, accuratezza, numero dialoghi e problemi critici
+- Vedere i dialoghi completi di ogni test passato
+- Analizzare trend e identificare problemi ricorrenti
+
+**I risultati dei test vengono salvati automaticamente nel container `testlogs` su Azure Storage** per analisi successive. Vedi [docs/TEST_LOGS_SETUP.md](docs/TEST_LOGS_SETUP.md) e [docs/TEST_HISTORY_FEATURE.md](docs/TEST_HISTORY_FEATURE.md) per maggiori dettagli.
 
 ### 🌐 Web Client (Test Mode)
 

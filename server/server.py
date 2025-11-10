@@ -820,6 +820,75 @@ async def save_test_logs():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/test-logs", methods=["GET"])
+@rate_limit(max_requests=RATE_LIMIT_API_COUNT, window_seconds=RATE_LIMIT_API_WINDOW)
+async def get_test_logs():
+    """
+    Retrieve all test logs from Azure Blob Storage.
+    
+    **Authentication**: None required (public endpoint for testing)
+    
+    Returns a list of all test results saved in the 'testlogs' container.
+    Each test includes metadata and full results.
+    
+    Returns:
+        JSON: List of test results
+        200 OK: Tests retrieved successfully
+        500 Internal Server Error: Retrieval failure
+    """
+    logger = logging.getLogger("get_test_logs")
+    
+    try:
+        from azure.storage.blob import BlobServiceClient
+        import asyncio
+        
+        # Get connection string from config
+        connection_string = app.config["AZURE_STORAGE_CONNECTION_STRING"]
+        if not connection_string:
+            logger.error("AZURE_STORAGE_CONNECTION_STRING not configured")
+            return jsonify({"error": "Azure Storage not configured"}), 500
+        
+        # Function to retrieve all test logs (sync operation wrapped for async)
+        def get_all_tests():
+            blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+            container_client = blob_service_client.get_container_client("testlogs")
+            
+            tests = []
+            
+            try:
+                # List all blobs in container
+                blobs = container_client.list_blobs()
+                
+                for blob in blobs:
+                    # Download and parse each blob
+                    blob_client = container_client.get_blob_client(blob.name)
+                    content = blob_client.download_blob().readall()
+                    test_data = json.loads(content)
+                    test_data['blob_name'] = blob.name
+                    tests.append(test_data)
+                    
+            except Exception as e:
+                # Container might not exist yet
+                if "ContainerNotFound" in str(e) or "The specified container does not exist" in str(e):
+                    logger.info("Container 'testlogs' does not exist yet - returning empty list")
+                    return []
+                raise
+            
+            return tests
+        
+        # Run sync operation in executor
+        loop = asyncio.get_event_loop()
+        tests = await loop.run_in_executor(None, get_all_tests)
+        
+        logger.info(f"Retrieved {len(tests)} test logs")
+        
+        return jsonify({"tests": tests, "count": len(tests)}), 200
+    
+    except Exception as e:
+        logger.error(f"Error retrieving test logs: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/indexer/run", methods=["POST"])
 @rate_limit(max_requests=RATE_LIMIT_ADMIN_COUNT, window_seconds=RATE_LIMIT_ADMIN_WINDOW)
 # Public for testing - no authentication required
