@@ -1,1 +1,3 @@
-*.json
+# Bicep build artifacts
+main.json
+modules/*.json
