@@ -141,6 +141,44 @@ module acs 'modules/acs.bicep' = {
   }
 }
 
+// Conditionally create Azure OpenAI if endpoint not provided
+module openai 'modules/openai.bicep' = if (empty(azureOpenAIEndpoint)) {
+  name: 'openai-deployment'
+  scope: rg
+  params: {
+    location: location
+    environmentName: environmentName
+    uniqueSuffix: uniqueSuffix
+    identityId: appIdentity.outputs.identityId
+    tags: tags
+  }
+  dependsOn: [ appIdentity ]
+}
+
+// Conditionally create Storage Account if connection string not provided
+module storage 'modules/storage.bicep' = if (empty(azureStorageConnectionString)) {
+  name: 'storage-deployment'
+  scope: rg
+  params: {
+    location: location
+    environmentName: environmentName
+    uniqueSuffix: uniqueSuffix
+    tags: tags
+  }
+}
+
+// Conditionally create Azure Cognitive Search if endpoint not provided
+module search 'modules/search.bicep' = if (empty(azureSearchEndpoint)) {
+  name: 'search-deployment'
+  scope: rg
+  params: {
+    location: location
+    environmentName: environmentName
+    uniqueSuffix: uniqueSuffix
+    tags: tags
+  }
+}
+
 var keyVaultName = toLower(replace('kv-${environmentName}-${uniqueSuffix}', '_', '-'))
 var sanitizedKeyVaultName = take(toLower(replace(replace(replace(replace(keyVaultName, '--', '-'), '_', '-'), '[^a-zA-Z0-9-]', ''), '-$', '')), 24)
 module keyvault 'modules/keyvault.bicep' = {
@@ -151,11 +189,11 @@ module keyvault 'modules/keyvault.bicep' = {
     keyVaultName: sanitizedKeyVaultName
     tags: tags
     acsConnectionString: acs.outputs.acsConnectionString
-    azureSearchApiKey: azureSearchApiKey
-    azureStorageConnectionString: azureStorageConnectionString
+    azureSearchApiKey: !empty(azureSearchApiKey) ? azureSearchApiKey : (empty(azureSearchEndpoint) ? search.outputs.searchApiKey : '')
+    azureStorageConnectionString: !empty(azureStorageConnectionString) ? azureStorageConnectionString : (empty(azureStorageConnectionString) ? storage.outputs.storageConnectionString : '')
     azureOpenAIKey: azureOpenAIKey
   }
-  dependsOn: [ appIdentity, acs ]
+  dependsOn: [ appIdentity, acs, openai, storage, search ]
 }
 
 // Add role assignments 
@@ -166,8 +204,11 @@ module RoleAssignments 'modules/roleassignments.bicep' = {
     identityPrincipalId: appIdentity.outputs.principalId
     aiServicesId: aiServices.outputs.aiServicesId
     keyVaultName: sanitizedKeyVaultName
+    storageId: empty(azureStorageConnectionString) ? storage.outputs.storageId : ''
+    searchId: empty(azureSearchEndpoint) ? search.outputs.searchId : ''
+    openAIId: empty(azureOpenAIEndpoint) ? openai.outputs.openAIId : ''
   }
-  dependsOn: [ keyvault, appIdentity ] 
+  dependsOn: [ keyvault, appIdentity, storage, search, openai ] 
 }
 
 module containerapp 'modules/containerapp.bicep' = {
@@ -190,7 +231,7 @@ module containerapp 'modules/containerapp.bicep' = {
     azureAdTenantId: azureAdTenantId
     azureAdClientId: azureAdClientId
     // Azure Search parameters
-    azureSearchEndpoint: azureSearchEndpoint
+    azureSearchEndpoint: !empty(azureSearchEndpoint) ? azureSearchEndpoint : (empty(azureSearchEndpoint) ? search.outputs.searchEndpoint : '')
     azureSearchIndex: azureSearchIndex
     azureSearchApiKeySecretUri: keyvault.outputs.azureSearchApiKeyUri
     azureSearchSemanticConfig: azureSearchSemanticConfig
@@ -199,9 +240,9 @@ module containerapp 'modules/containerapp.bicep' = {
     // Azure Storage parameters
     azureStorageConnectionStringSecretUri: keyvault.outputs.azureStorageConnectionStringUri
     // Azure OpenAI parameters
-    azureOpenAIEndpoint: azureOpenAIEndpoint
+    azureOpenAIEndpoint: !empty(azureOpenAIEndpoint) ? azureOpenAIEndpoint : (empty(azureOpenAIEndpoint) ? openai.outputs.openAIEndpoint : '')
     azureOpenAIKeySecretUri: keyvault.outputs.azureOpenAIKeyUri
-    azureOpenAIEmbeddingDeployment: azureOpenAIEmbeddingDeployment
+    azureOpenAIEmbeddingDeployment: !empty(azureOpenAIEmbeddingDeployment) ? azureOpenAIEmbeddingDeployment : (empty(azureOpenAIEndpoint) ? openai.outputs.embeddingDeploymentName : '')
     // Security parameters
     allowedOrigins: allowedOrigins
     rateLimitUploadsCount: rateLimitUploadsCount
@@ -214,6 +255,19 @@ module containerapp 'modules/containerapp.bicep' = {
   dependsOn: [keyvault, RoleAssignments]
 }
 
+// Event Grid System Topic for ACS IncomingCall events
+module eventgrid 'modules/eventgrid.bicep' = {
+  name: 'eventgrid-deployment'
+  scope: rg
+  params: {
+    environmentName: environmentName
+    uniqueSuffix: uniqueSuffix
+    acsResourceId: acs.outputs.acsResourceId
+    containerAppFqdn: containerapp.outputs.containerAppFqdn
+    tags: tags
+  }
+  dependsOn: [ acs, containerapp ]
+}
 
 // OUTPUTS will be saved in azd env for later use
 output AZURE_LOCATION string = location
@@ -226,3 +280,10 @@ output AZURE_CONTAINER_REGISTRY_ENDPOINT string = registry.outputs.loginServer
 output SERVICE_API_ENDPOINTS array = ['${containerapp.outputs.containerAppFqdn}/acs/incomingcall']
 output AZURE_VOICE_LIVE_ENDPOINT string = aiServices.outputs.aiServicesEndpoint
 output AZURE_VOICE_LIVE_MODEL string = modelName
+
+// Outputs for newly created resources
+output AZURE_OPENAI_ENDPOINT string = !empty(azureOpenAIEndpoint) ? azureOpenAIEndpoint : (empty(azureOpenAIEndpoint) ? openai.outputs.openAIEndpoint : '')
+output AZURE_OPENAI_EMBEDDING_DEPLOYMENT string = !empty(azureOpenAIEmbeddingDeployment) ? azureOpenAIEmbeddingDeployment : (empty(azureOpenAIEndpoint) ? openai.outputs.embeddingDeploymentName : '')
+output AZURE_SEARCH_ENDPOINT string = !empty(azureSearchEndpoint) ? azureSearchEndpoint : (empty(azureSearchEndpoint) ? search.outputs.searchEndpoint : '')
+output AZURE_STORAGE_ACCOUNT_NAME string = empty(azureStorageConnectionString) ? storage.outputs.storageName : ''
+output AZURE_EVENT_GRID_SYSTEM_TOPIC string = eventgrid.outputs.systemTopicName
