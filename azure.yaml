@@ -11,6 +11,30 @@ services:
         docker:
           path: Dockerfile
           remoteBuild: true
+hooks:
+  postprovision:
+    posix:
+      shell: sh
+      run: ./infra/hooks/postprovision.sh
+      continueOnError: false
+      interactive: true
+    windows:
+      shell: pwsh
+      run: |
+        Write-Host "Post-provision configuration for Windows not fully automated."
+        Write-Host "Please run the following commands manually:"
+        Write-Host ""
+        Write-Host "# Configure Azure AD"
+        Write-Host '$tenantId = az account show --query tenantId -o tsv'
+        Write-Host '$appId = az ad app create --display-name \"Call Center Voice Agent API - $env\" --sign-in-audience AzureADMyOrg --query appId -o tsv'
+        Write-Host 'azd env set AZURE_AD_TENANT_ID $tenantId'
+        Write-Host 'azd env set AZURE_AD_CLIENT_ID $appId'
+        Write-Host ""
+        Write-Host "# Configure Search Index"
+        Write-Host 'azd env set AZURE_SEARCH_INDEX "pharmacy-knowledge-base"'
+        Write-Host ""
+        Write-Host "# Update Container App"
+        Write-Host 'azd provision --no-prompt'
 pipeline:
   variables:
     - AZURE_LOCATION
