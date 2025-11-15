@@ -26,33 +26,22 @@ param azureAdTenantId string = ''
 @description('Azure AD Client ID (API app) for authentication (optional)')
 param azureAdClientId string = ''
 
-// Azure Search parameters
-@description('Azure Search endpoint URL')
+// Azure Search parameters (optional - if not provided, will use deployed service)
+@description('Azure Search endpoint URL (optional - uses deployed service if empty)')
 param azureSearchEndpoint string = ''
-@description('Azure Search index name')
+@description('Azure Search index name (optional - uses deployed service if empty)')
 param azureSearchIndex string = ''
-@secure()
-@description('Azure Search API key (secret)')
-param azureSearchApiKey string = ''
 @description('Azure Search semantic configuration name')
-param azureSearchSemanticConfig string = ''
+param azureSearchSemanticConfig string = 'default'
 @description('Azure Search top N results')
 param azureSearchTopN string = '5'
 @description('Azure Search strictness level')
 param azureSearchStrictness string = '3'
 
-// Azure Storage parameters
-@secure()
-@description('Azure Storage connection string (secret)')
-param azureStorageConnectionString string = ''
-
-// Azure OpenAI parameters
-@description('Azure OpenAI endpoint URL')
+// Azure OpenAI parameters (optional - if not provided, will use deployed service)
+@description('Azure OpenAI endpoint URL (optional - uses deployed service if empty)')
 param azureOpenAIEndpoint string = ''
-@secure()
-@description('Azure OpenAI API key (secret)')
-param azureOpenAIKey string = ''
-@description('Azure OpenAI embedding deployment name')
+@description('Azure OpenAI embedding deployment name (optional - uses deployed service if empty)')
 param azureOpenAIEmbeddingDeployment string = ''
 
 // Security parameters
@@ -141,6 +130,44 @@ module acs 'modules/acs.bicep' = {
   }
 }
 
+// Deploy Azure Search Service
+module search 'modules/azuresearch.bicep' = {
+  name: 'search-deployment'
+  scope: rg
+  params: {
+    location: location
+    environmentName: environmentName
+    uniqueSuffix: uniqueSuffix
+    tags: tags
+    identityPrincipalId: appIdentity.outputs.principalId
+  }
+  dependsOn: [ appIdentity ]
+}
+
+// Deploy Storage Account
+module storage 'modules/storageaccount.bicep' = {
+  name: 'storage-deployment'
+  scope: rg
+  params: {
+    location: location
+    environmentName: environmentName
+    uniqueSuffix: uniqueSuffix
+    tags: tags
+  }
+}
+
+// Deploy Azure OpenAI
+module openai 'modules/openai.bicep' = {
+  name: 'openai-deployment'
+  scope: rg
+  params: {
+    location: location
+    environmentName: environmentName
+    uniqueSuffix: uniqueSuffix
+    tags: tags
+  }
+}
+
 var keyVaultName = toLower(replace('kv-${environmentName}-${uniqueSuffix}', '_', '-'))
 var sanitizedKeyVaultName = take(toLower(replace(replace(replace(replace(keyVaultName, '--', '-'), '_', '-'), '[^a-zA-Z0-9-]', ''), '-$', '')), 24)
 module keyvault 'modules/keyvault.bicep' = {
@@ -151,11 +178,11 @@ module keyvault 'modules/keyvault.bicep' = {
     keyVaultName: sanitizedKeyVaultName
     tags: tags
     acsConnectionString: acs.outputs.acsConnectionString
-    azureSearchApiKey: azureSearchApiKey
-    azureStorageConnectionString: azureStorageConnectionString
-    azureOpenAIKey: azureOpenAIKey
+    azureSearchServiceName: search.outputs.searchServiceName
+    storageAccountName: storage.outputs.storageAccountName
+    openAIAccountName: openai.outputs.openAIName
   }
-  dependsOn: [ appIdentity, acs ]
+  dependsOn: [ acs, search, storage, openai ]
 }
 
 // Add role assignments 
@@ -189,19 +216,19 @@ module containerapp 'modules/containerapp.bicep' = {
     imageName: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
     azureAdTenantId: azureAdTenantId
     azureAdClientId: azureAdClientId
-    // Azure Search parameters
-    azureSearchEndpoint: azureSearchEndpoint
-    azureSearchIndex: azureSearchIndex
+    // Azure Search parameters - use deployed service or external if provided
+    azureSearchEndpoint: !empty(azureSearchEndpoint) ? azureSearchEndpoint : search.outputs.searchServiceEndpoint
+    azureSearchIndex: !empty(azureSearchIndex) ? azureSearchIndex : search.outputs.indexName
     azureSearchApiKeySecretUri: keyvault.outputs.azureSearchApiKeyUri
     azureSearchSemanticConfig: azureSearchSemanticConfig
     azureSearchTopN: azureSearchTopN
     azureSearchStrictness: azureSearchStrictness
-    // Azure Storage parameters
+    // Azure Storage parameters - use deployed service
     azureStorageConnectionStringSecretUri: keyvault.outputs.azureStorageConnectionStringUri
-    // Azure OpenAI parameters
-    azureOpenAIEndpoint: azureOpenAIEndpoint
+    // Azure OpenAI parameters - use deployed service or external if provided
+    azureOpenAIEndpoint: !empty(azureOpenAIEndpoint) ? azureOpenAIEndpoint : openai.outputs.openAIEndpoint
     azureOpenAIKeySecretUri: keyvault.outputs.azureOpenAIKeyUri
-    azureOpenAIEmbeddingDeployment: azureOpenAIEmbeddingDeployment
+    azureOpenAIEmbeddingDeployment: !empty(azureOpenAIEmbeddingDeployment) ? azureOpenAIEmbeddingDeployment : openai.outputs.embeddingDeploymentName
     // Security parameters
     allowedOrigins: allowedOrigins
     rateLimitUploadsCount: rateLimitUploadsCount
@@ -224,5 +251,19 @@ output AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID string = appIdentity.outputs.clien
 
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = registry.outputs.loginServer
 output SERVICE_API_ENDPOINTS array = ['${containerapp.outputs.containerAppFqdn}/acs/incomingcall']
-output AZURE_VOICE_LIVE_ENDPOINT string = aiServices.outputs.aiServicesEndpoint
 output AZURE_VOICE_LIVE_MODEL string = modelName
+
+// Azure Search outputs
+output AZURE_SEARCH_ENDPOINT string = search.outputs.searchServiceEndpoint
+output AZURE_SEARCH_INDEX string = search.outputs.indexName
+
+// Azure Storage outputs
+output AZURE_STORAGE_ACCOUNT_NAME string = storage.outputs.storageAccountName
+output AZURE_STORAGE_BLOB_ENDPOINT string = storage.outputs.blobEndpoint
+
+// Azure OpenAI outputs
+output AZURE_OPENAI_ENDPOINT string = openai.outputs.openAIEndpoint
+output AZURE_OPENAI_EMBEDDING_DEPLOYMENT string = openai.outputs.embeddingDeploymentName
+
+// Key Vault output
+output AZURE_KEY_VAULT_NAME string = keyvault.outputs.keyVaultName
