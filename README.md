@@ -1,6 +1,9 @@
 # Call Center Voice Agent Accelerator with Azure Voice Live API
 
-> **✨ Nuovo**: I test "Simulazione Utenti" vengono ora salvati automaticamente su Azure Storage in formato JSON! Vedi [docs/TEST_LOGS_SETUP.md](docs/TEST_LOGS_SETUP.md) per i dettagli.
+> **✨ Nuovo**: Setup completamente automatizzato! Vedi [AUTOMATED_SETUP.md](AUTOMATED_SETUP.md) per deployment con un comando.
+
+> **📊 Test Logs**: I test "Simulazione Utenti" vengono salvati automaticamente su Azure Storage in formato JSON! Vedi [docs/TEST_LOGS_SETUP.md](docs/TEST_LOGS_SETUP.md) per i dettagli.
+
 | [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Azure-Samples/call-center-voice-agent-accelerator) | [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/Azure-Samples/call-center-voice-agent-accelerator)
 |---|---|
 

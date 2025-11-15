@@ -30,7 +30,7 @@ param azureAdClientId string = ''
 @description('Azure Search endpoint URL (optional - uses deployed service if empty)')
 param azureSearchEndpoint string = ''
 @description('Azure Search index name (optional - uses deployed service if empty)')
-param azureSearchIndex string = ''
+param azureSearchIndex string = 'pharmacy-knowledge-base'
 @description('Azure Search semantic configuration name')
 param azureSearchSemanticConfig string = 'default'
 @description('Azure Search top N results')
