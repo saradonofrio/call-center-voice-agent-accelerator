@@ -74,12 +74,14 @@ app = Quart(__name__)
 ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "*")  # Use "*" for testing, specific domains for production
 
 # Apply CORS to the app
+# Note: allow_credentials cannot be True when allow_origin is "*"
+# For wildcard origins, set allow_credentials to False
 app = cors(
     app,
     allow_origin=ALLOWED_ORIGINS,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
-    allow_credentials=True,
+    allow_credentials=False if ALLOWED_ORIGINS == "*" else True,
     max_age=3600  # Cache preflight requests for 1 hour
 )
 

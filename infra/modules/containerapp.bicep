@@ -119,6 +119,21 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
           keyVaultUrl: acsConnectionStringSecretUri
           identity: identityId
         }
+        {
+          name: 'azure-search-api-key'
+          keyVaultUrl: azureSearchApiKeySecretUri
+          identity: identityId
+        }
+        {
+          name: 'azure-storage-connection-string'
+          keyVaultUrl: azureStorageConnectionStringSecretUri
+          identity: identityId
+        }
+        {
+          name: 'azure-openai-key'
+          keyVaultUrl: azureOpenAIKeySecretUri
+          identity: identityId
+        }
       ]
     }
     template: {
@@ -160,6 +175,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
               value: azureSearchIndex
             }
             {
+              name: 'AZURE_SEARCH_API_KEY'
+              secretRef: 'azure-search-api-key'
+            }
+            {
               name: 'AZURE_SEARCH_SEMANTIC_CONFIG'
               value: azureSearchSemanticConfig
             }
@@ -172,8 +191,16 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
               value: azureSearchStrictness
             }
             {
+              name: 'AZURE_STORAGE_CONNECTION_STRING'
+              secretRef: 'azure-storage-connection-string'
+            }
+            {
               name: 'AZURE_OPENAI_ENDPOINT'
               value: azureOpenAIEndpoint
+            }
+            {
+              name: 'AZURE_OPENAI_KEY'
+              secretRef: 'azure-openai-key'
             }
             {
               name: 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT'
