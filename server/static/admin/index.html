@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - Feedback Bot</title>
+  <link rel="stylesheet" href="/static/admin/admin.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎯 Admin Dashboard - Bot Feedback System</h1>
+      <p>Review conversations, provide feedback, and improve bot responses</p>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" onclick="switchTab('conversations')">💬 Conversations</button>
+      <button class="tab" onclick="switchTab('analytics')">📊 Analytics</button>
+      <button class="tab" onclick="switchTab('approved')">⭐ Approved Responses</button>
+    </nav>
+
+    <!-- Conversations Tab -->
+    <div id="conversations-tab" class="tab-content active">
+      <div class="filters">
+        <select id="channel-filter" onchange="loadConversations()">
+          <option value="">All Channels</option>
+          <option value="web">Web</option>
+          <option value="phone">Phone</option>
+        </select>
+        
+        <input type="date" id="start-date" onchange="loadConversations()" />
+        <input type="date" id="end-date" onchange="loadConversations()" />
+        
+        <button onclick="loadConversations()">🔄 Refresh</button>
+      </div>
+
+      <div id="conversations-list" class="conversations-list">
+        <!-- Conversations will be loaded here -->
+      </div>
+
+      <div class="pagination">
+        <button id="prev-page" onclick="previousPage()">← Previous</button>
+        <span id="page-info">Page 1</span>
+        <button id="next-page" onclick="nextPage()">Next →</button>
+      </div>
+    </div>
+
+    <!-- Analytics Tab -->
+    <div id="analytics-tab" class="tab-content">
+      <h2>📊 Dashboard Metrics</h2>
+      <div id="analytics-content" class="analytics-grid">
+        <!-- Analytics will be loaded here -->
+      </div>
+    </div>
+
+    <!-- Approved Responses Tab -->
+    <div id="approved-tab" class="tab-content">
+      <h2>⭐ Approved Responses for Learning</h2>
+      <div id="approved-content">
+        <!-- Approved responses will be loaded here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Conversation Detail Modal -->
+  <div id="conversation-modal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeModal()">&times;</span>
+      <h2>Conversation Details</h2>
+      <div id="conversation-detail"></div>
+    </div>
+  </div>
+
+  <!-- Feedback Modal -->
+  <div id="feedback-modal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeFeedbackModal()">&times;</span>
+      <h2>Provide Feedback</h2>
+      <div id="feedback-form">
+        <label>Rating:</label>
+        <div class="rating">
+          <button onclick="setRating(1)">⭐</button>
+          <button onclick="setRating(2)">⭐⭐</button>
+          <button onclick="setRating(3)">⭐⭐⭐</button>
+          <button onclick="setRating(4)">⭐⭐⭐⭐</button>
+          <button onclick="setRating(5)">⭐⭐⭐⭐⭐</button>
+        </div>
+        <input type="hidden" id="selected-rating" value="3">
+        
+        <label>Tags:</label>
+        <div class="tags">
+          <label><input type="checkbox" value="helpful"> Helpful</label>
+          <label><input type="checkbox" value="accurate"> Accurate</label>
+          <label><input type="checkbox" value="wrong_info"> Wrong Info</label>
+          <label><input type="checkbox" value="tone_issue"> Tone Issue</label>
+          <label><input type="checkbox" value="context_lost"> Context Lost</label>
+          <label><input type="checkbox" value="excellent"> Excellent</label>
+        </div>
+        
+        <label>Admin Comment:</label>
+        <textarea id="admin-comment" rows="3" placeholder="Your feedback..."></textarea>
+        
+        <label>Corrected Response (optional):</label>
+        <textarea id="corrected-response" rows="4" placeholder="Provide a better response..."></textarea>
+        
+        <button onclick="submitFeedback()">Submit Feedback</button>
+        <button onclick="approveResponse()" class="approve-btn">✅ Approve for Learning</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/admin/admin.js"></script>
+</body>
+</html>

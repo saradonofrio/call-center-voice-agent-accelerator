@@ -37,8 +37,26 @@ The solution includes:
 - Two client options: **Web browser** (microphone/speaker) and **Azure Communication Services (ACS)** phone calls
 - Flexible configuration to customize prompts, ASR, TTS, and behavior
 - Easy extension to other client types such as [Audiohook](https://learn.microsoft.com/azure/ai-services/speech-service/how-to-use-audiohook)
+- **🆕 Admin Feedback System**: Review conversations, provide feedback, and enable bot learning through RAG (Retrieval-Augmented Generation)
+- **🔒 GDPR Compliance**: Automatic PII anonymization for Italian context (phone numbers, fiscal codes, names, medical terms)
+- **📊 Analytics Dashboard**: Track conversation quality, ratings, and approved responses
 
 > You can also try the Voice Live API via [Azure AI Foundry](https://ai.azure.com/foundry) for quick experimentation before deploying this template to your own Azure subscription.
+
+### Feedback System & Learning
+
+The solution includes a comprehensive feedback system that enables continuous improvement of bot responses:
+
+- **Conversation Tracking**: All conversations are automatically logged with PII anonymization
+- **Admin Dashboard**: Web interface for reviewing conversations and providing feedback
+- **Learning Integration**: Approved responses are indexed in Azure AI Search for RAG-based learning
+- **GDPR Compliant**: Data access, erasure, and retention policies with encrypted storage
+- **Analytics**: Comprehensive metrics on conversation quality and bot performance
+
+📖 **Documentation**:
+- [Feedback System Implementation Summary](./FEEDBACK_SYSTEM_IMPLEMENTATION_SUMMARY.md) - Complete technical details
+- [Key Vault Encryption Setup](./docs/KEY_VAULT_ENCRYPTION_SETUP.md) - Security and encryption configuration
+- [Quick Reference Guide](./FEEDBACK_SYSTEM_QUICK_REFERENCE.md) - Common tasks and commands
 
 ### Architecture diagram
 |![Architecture Diagram](./docs/images/architecture_v0.0.1.png)|

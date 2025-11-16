@@ -43,6 +43,10 @@ param azureOpenAIKeySecretUri string = ''
 @description('Azure OpenAI embedding deployment name')
 param azureOpenAIEmbeddingDeployment string = ''
 
+// Feedback system parameters
+@description('Anonymization encryption key (Key Vault secret URI) for GDPR compliance')
+param anonymizationEncryptionKeySecretUri string = ''
+
 // Security parameters
 @description('Allowed CORS origins (comma-separated or *)')
 param allowedOrigins string = '*'
@@ -134,6 +138,11 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
           keyVaultUrl: azureOpenAIKeySecretUri
           identity: identityId
         }
+        {
+          name: 'anonymization-encryption-key'
+          keyVaultUrl: anonymizationEncryptionKeySecretUri
+          identity: identityId
+        }
       ]
     }
     template: {
@@ -205,6 +214,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-10-02-preview' = {
             {
               name: 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT'
               value: azureOpenAIEmbeddingDeployment
+            }
+            {
+              name: 'ANONYMIZATION_ENCRYPTION_KEY'
+              secretRef: 'anonymization-encryption-key'
             }
             {
               name: 'ALLOWED_ORIGINS'

@@ -229,6 +229,8 @@ module containerapp 'modules/containerapp.bicep' = {
     azureOpenAIEndpoint: !empty(azureOpenAIEndpoint) ? azureOpenAIEndpoint : openai.outputs.openAIEndpoint
     azureOpenAIKeySecretUri: keyvault.outputs.azureOpenAIKeyUri
     azureOpenAIEmbeddingDeployment: !empty(azureOpenAIEmbeddingDeployment) ? azureOpenAIEmbeddingDeployment : openai.outputs.embeddingDeploymentName
+    // Feedback system parameters - anonymization encryption key from Key Vault
+    anonymizationEncryptionKeySecretUri: keyvault.outputs.anonymizationEncryptionKeyUri
     // Security parameters
     allowedOrigins: allowedOrigins
     rateLimitUploadsCount: rateLimitUploadsCount
@@ -238,7 +240,7 @@ module containerapp 'modules/containerapp.bicep' = {
     rateLimitAdminCount: rateLimitAdminCount
     rateLimitAdminWindow: rateLimitAdminWindow
   }
-  dependsOn: [keyvault, RoleAssignments]
+  dependsOn: [RoleAssignments]
 }
 
 

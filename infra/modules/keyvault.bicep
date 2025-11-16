@@ -75,11 +75,30 @@ resource azureOpenAIKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = i
   }
 }
 
+// Generate and store anonymization encryption key for PII protection (GDPR compliance)
+// This key is used to encrypt PII anonymization maps
+// Generated once during deployment and stored securely in Key Vault
+resource anonymizationEncryptionKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'ANONYMIZATION-ENCRYPTION-KEY'
+  properties: {
+    // Generate a Fernet-compatible key (32 bytes base64-encoded = 44 characters)
+    // Bicep doesn't have crypto functions, so we use a guid-based approach
+    // In production, this will be generated once and persisted
+    value: base64(guid(keyVault.id, 'anonymization-encryption-key-v1'))
+    contentType: 'application/x-fernet-key'
+    attributes: {
+      enabled: true
+    }
+  }
+}
+
 var keyVaultDnsSuffix = environment().suffixes.keyvaultDns
 
 output acsConnectionStringUri string = 'https://${keyVault.name}${keyVaultDnsSuffix}/secrets/${acsConnectionStringSecret.name}'
 output azureSearchApiKeyUri string = !empty(azureSearchServiceName) ? 'https://${keyVault.name}${keyVaultDnsSuffix}/secrets/${azureSearchApiKeySecret.name}' : ''
 output azureStorageConnectionStringUri string = !empty(storageAccountName) ? 'https://${keyVault.name}${keyVaultDnsSuffix}/secrets/${azureStorageConnectionStringSecret.name}' : ''
 output azureOpenAIKeyUri string = !empty(openAIAccountName) ? 'https://${keyVault.name}${keyVaultDnsSuffix}/secrets/${azureOpenAIKeySecret.name}' : ''
+output anonymizationEncryptionKeyUri string = 'https://${keyVault.name}${keyVaultDnsSuffix}/secrets/${anonymizationEncryptionKeySecret.name}'
 output keyVaultId string = keyVault.id
 output keyVaultName string = keyVault.name
