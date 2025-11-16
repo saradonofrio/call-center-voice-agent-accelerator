@@ -292,7 +292,56 @@ fi
 
 echo ""
 echo "=========================================="
-echo "Step 6: Finalize Configuration"
+echo "Step 6: Update Anonymization Encryption Key"
+echo "=========================================="
+echo ""
+
+if [ -n "$KEY_VAULT_NAME" ]; then
+    echo "Checking anonymization encryption key in Key Vault..."
+    
+    # Check if the key exists and is properly formatted
+    EXISTING_KEY=$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name "ANONYMIZATION-ENCRYPTION-KEY" --query "value" -o tsv 2>/dev/null || echo "")
+    
+    if [ -z "$EXISTING_KEY" ]; then
+        echo "⚠ Anonymization encryption key not found"
+    else
+        # Check if the key is Fernet-compatible (44 characters, base64 encoded, ends with =)
+        KEY_LENGTH=${#EXISTING_KEY}
+        if [ "$KEY_LENGTH" -eq 44 ] && [[ "$EXISTING_KEY" == *"=" ]]; then
+            echo "✓ Valid Fernet encryption key found in Key Vault"
+        else
+            echo "⚠ Key exists but may not be Fernet-compatible (length: $KEY_LENGTH)"
+            echo "Generating new Fernet encryption key..."
+            
+            # Check if Python is available
+            if command -v python3 &> /dev/null; then
+                # Generate a proper Fernet key using Python
+                NEW_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+                
+                # Update the key in Key Vault
+                az keyvault secret set \
+                    --vault-name "$KEY_VAULT_NAME" \
+                    --name "ANONYMIZATION-ENCRYPTION-KEY" \
+                    --value "$NEW_KEY" \
+                    --content-type "application/x-fernet-key" \
+                    --output none
+                
+                echo "✓ Generated and stored new Fernet encryption key"
+                echo "  Key length: ${#NEW_KEY} characters"
+            else
+                echo "⚠ Python3 not available. Cannot generate Fernet key."
+                echo "  Please manually update the key in Key Vault: $KEY_VAULT_NAME"
+                echo "  Run: python3 infra/hooks/generate_encryption_key.py"
+            fi
+        fi
+    fi
+else
+    echo "⚠ Key Vault not found. Cannot verify encryption key."
+fi
+
+echo ""
+echo "=========================================="
+echo "Step 7: Finalize Configuration"
 echo "=========================================="
 echo ""
 
@@ -314,6 +363,14 @@ if [ -n "$KEY_VAULT_NAME" ]; then
     echo "  ACS Connection String: $([ -n "$ACS_SECRET" ] && echo '✓ Configured' || echo '✗ Missing')"
     echo "  Search API Key: $([ -n "$SEARCH_SECRET" ] && echo '✓ Configured' || echo '⚠ Not configured')"
     echo "  Storage Connection: $([ -n "$STORAGE_SECRET" ] && echo '✓ Configured' || echo '⚠ Not configured')"
+    
+    # Verify anonymization encryption key
+    ANON_KEY_CHECK=$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name "ANONYMIZATION-ENCRYPTION-KEY" --query "value" -o tsv 2>/dev/null || echo "")
+    if [ -n "$ANON_KEY_CHECK" ]; then
+        echo "  Anonymization Encryption Key: ✓ Configured (${#ANON_KEY_CHECK} chars)"
+    else
+        echo "  Anonymization Encryption Key: ✗ Missing"
+    fi
 fi
 echo ""
 echo "Next steps:"

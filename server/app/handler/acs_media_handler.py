@@ -218,6 +218,15 @@ class ACSMediaHandler:
         self.response_in_progress = False        # Track if AI is generating a response
         self.custom_instructions = None          # Store custom instructions from frontend
         self.voice_live_connected = False        # Track if Voice Live connection is established
+        
+        # Conversation tracking
+        self.session_id = None                   # Session identifier for logging
+        self.conversation_logger = None          # Conversation logger instance
+        self.current_turn_data = {}              # Track current turn data
+        self.last_user_message = None            # Track user message
+        self.last_bot_response = None            # Track bot response
+        self.search_query_used = None            # Track search query
+        self.search_results_used = None          # Track search results
 
     def _generate_guid(self):
         """Generate a unique GUID for request tracking."""
@@ -237,6 +246,31 @@ class ACSMediaHandler:
         except Exception as e:
             logger.error("Error checking task exception: %s", e)
 
+    def set_conversation_logger(self, conversation_logger, session_id: str, channel: str, phone_number: str = None):
+        """
+        Set conversation logger for tracking user-bot interactions.
+        
+        Args:
+            conversation_logger: ConversationLogger instance
+            session_id: Unique session identifier
+            channel: 'web' or 'phone'
+            phone_number: Phone number for phone channel (optional)
+        """
+        self.conversation_logger = conversation_logger
+        self.session_id = session_id
+        
+        if conversation_logger and session_id:
+            conversation_logger.start_conversation(
+                session_id=session_id,
+                channel=channel,
+                phone_number=phone_number,
+                metadata={
+                    "model": self.model,
+                    "endpoint": self.endpoint
+                }
+            )
+            logger.info(f"Conversation logging started for session: {session_id}")
+    
     async def connect(self):
         """
         Connects to Azure Voice Live API via WebSocket.
@@ -426,6 +460,10 @@ class ACSMediaHandler:
                         # User speech transcription completed
                         transcript = event.get("transcript")
                         logger.info("User: %s", transcript)
+                        
+                        # Track user message for logging
+                        self.last_user_message = transcript
+                        
                         # Send user voice transcription to frontend
                         if self.is_raw_audio:
                             await self.send_message(
@@ -441,6 +479,10 @@ class ACSMediaHandler:
                         # Bot audio response transcription completed
                         transcript = event.get("transcript")
                         logger.info("AI: %s", transcript)
+                        
+                        # Track bot response for logging
+                        self.last_bot_response = transcript
+                        
                         # Send bot audio transcription to frontend
                         if self.is_raw_audio:
                             await self.send_message(
@@ -461,6 +503,28 @@ class ACSMediaHandler:
                                 "Status Details: %s",
                                 json.dumps(response["status_details"], indent=2),
                             )
+                        
+                        # Log the conversation turn if we have both messages
+                        if self.conversation_logger and self.session_id:
+                            if self.last_user_message and self.last_bot_response:
+                                try:
+                                    await self.conversation_logger.log_turn(
+                                        session_id=self.session_id,
+                                        user_message=self.last_user_message,
+                                        bot_response=self.last_bot_response,
+                                        search_used=bool(self.search_query_used),
+                                        search_query=self.search_query_used,
+                                        search_results=self.search_results_used
+                                    )
+                                    logger.info("Logged conversation turn")
+                                    
+                                    # Reset for next turn
+                                    self.last_user_message = None
+                                    self.last_bot_response = None
+                                    self.search_query_used = None
+                                    self.search_results_used = None
+                                except Exception as e:
+                                    logger.error(f"Error logging conversation turn: {e}")
 
                     # ================================================================
                     # AUDIO PLAYBACK EVENTS
@@ -490,6 +554,10 @@ class ACSMediaHandler:
                                 if content.get("type") == "text":
                                     text = content.get("text")
                                     logger.info("Bot (text): %s", text)
+                                    
+                                    # Track bot response for logging
+                                    self.last_bot_response = text
+                                    
                                     if text and not self.is_raw_audio:
                                         # Send text response to ACS client
                                         await self.send_message(json.dumps({
@@ -502,6 +570,28 @@ class ACSMediaHandler:
                                             "Kind": "BotResponse",
                                             "Text": text
                                         }))
+                                    
+                                    # Log the conversation turn if we have both messages
+                                    if self.conversation_logger and self.session_id:
+                                        if self.last_user_message and self.last_bot_response:
+                                            try:
+                                                await self.conversation_logger.log_turn(
+                                                    session_id=self.session_id,
+                                                    user_message=self.last_user_message,
+                                                    bot_response=self.last_bot_response,
+                                                    search_used=bool(self.search_query_used),
+                                                    search_query=self.search_query_used,
+                                                    search_results=self.search_results_used
+                                                )
+                                                logger.info("Logged conversation turn (text)")
+                                                
+                                                # Reset for next turn
+                                                self.last_user_message = None
+                                                self.last_bot_response = None
+                                                self.search_query_used = None
+                                                self.search_results_used = None
+                                            except Exception as e:
+                                                logger.error(f"Error logging conversation turn: {e}")
 
                     # ================================================================
                     # FUNCTION CALLING EVENTS (Azure Search Integration)
@@ -521,8 +611,14 @@ class ACSMediaHandler:
                                 arguments = json.loads(arguments_str)
                                 query = arguments.get("query", "")
                                 
+                                # Track search usage for logging
+                                self.search_query_used = query
+                                
                                 # Execute the Azure AI Search
                                 search_results = await self._execute_azure_search(query)
+                                
+                                # Track search results (abbreviated for logging)
+                                self.search_results_used = search_results[:200] if len(search_results) > 200 else search_results
                                 
                                 # Send results back to Voice Live API
                                 # The API will automatically continue the response after receiving the result
@@ -698,6 +794,9 @@ class ACSMediaHandler:
             text (str): User's text message
         """
         logger.info("[text_to_voicelive] Sending text to Voice Live: %s", text)
+        
+        # Track user message for logging
+        self.last_user_message = text
         
         # Create conversation item with user message
         payload = {

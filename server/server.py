@@ -31,8 +31,10 @@ import asyncio
 import logging
 import sys
 import json
+import uuid
 
 import os
+from datetime import datetime, timezone
 from app.handler.acs_event_handler import AcsEventHandler
 from app.handler.acs_media_handler import ACSMediaHandler
 from app.document_processor import DocumentProcessor
@@ -63,7 +65,8 @@ logging.basicConfig(
 # APPLICATION INITIALIZATION
 # ============================================================
 # Initialize Quart app (async-capable Flask alternative)
-app = Quart(__name__)
+# Configure static folder for serving admin dashboard and other static assets
+app = Quart(__name__, static_folder='static', static_url_path='/static')
 
 # ============================================================
 # CORS CONFIGURATION
@@ -209,6 +212,76 @@ document_processor = DocumentProcessor({
 })
 
 # ============================================================
+# INITIALIZE CONVERSATION LOGGING & FEEDBACK SYSTEM
+# ============================================================
+from app.conversation_logger import get_conversation_logger
+from app.gdpr_compliance import get_gdpr_compliance
+from app.feedback_indexer import get_feedback_indexer
+from app.analytics import get_analytics
+
+# Initialize conversation logger with PII anonymization
+conversation_logger = None
+gdpr_compliance = None
+feedback_indexer = None
+analytics = None
+
+# Initialize at startup
+@app.before_serving
+async def initialize_feedback_system():
+    """Initialize conversation logging and feedback system."""
+    global conversation_logger, gdpr_compliance, feedback_indexer, analytics
+    
+    storage_conn = app.config["AZURE_STORAGE_CONNECTION_STRING"]
+    
+    if storage_conn:
+        try:
+            # Initialize conversation logger
+            conversation_logger = get_conversation_logger(storage_conn)
+            await conversation_logger.initialize()
+            logger.info("Conversation logger initialized")
+            
+            # Initialize GDPR compliance
+            gdpr_compliance = get_gdpr_compliance(storage_conn)
+            await gdpr_compliance.initialize()
+            logger.info("GDPR compliance initialized")
+            
+            # Initialize analytics
+            analytics = get_analytics(storage_conn)
+            await analytics.initialize()
+            logger.info("Analytics initialized")
+            
+            # Initialize feedback indexer if search is configured
+            if (app.config.get("AZURE_SEARCH_ENDPOINT") and 
+                app.config.get("AZURE_SEARCH_API_KEY") and
+                app.config.get("AZURE_OPENAI_ENDPOINT") and
+                app.config.get("AZURE_OPENAI_KEY")):
+                
+                feedback_indexer = get_feedback_indexer(
+                    search_endpoint=app.config["AZURE_SEARCH_ENDPOINT"],
+                    search_api_key=app.config["AZURE_SEARCH_API_KEY"],
+                    storage_connection_string=storage_conn,
+                    openai_endpoint=app.config["AZURE_OPENAI_ENDPOINT"],
+                    openai_api_key=app.config["AZURE_OPENAI_KEY"],
+                    embedding_model=app.config.get("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002")
+                )
+                await feedback_indexer.initialize()
+                logger.info("Feedback indexer initialized")
+        except Exception as e:
+            logger.error(f"Error initializing feedback system: {e}")
+
+@app.after_serving
+async def cleanup_feedback_system():
+    """Cleanup feedback system on shutdown."""
+    if conversation_logger:
+        await conversation_logger.close()
+    if gdpr_compliance:
+        await gdpr_compliance.close()
+    if feedback_indexer:
+        await feedback_indexer.close()
+    if analytics:
+        await analytics.close()
+
+# ============================================================
 # ACS TELEPHONY ENDPOINTS
 # ============================================================
 
@@ -324,6 +397,12 @@ async def acs_ws():
     # Set up incoming WebSocket (ACS sends JSON messages)
     await handler.init_incoming_websocket(websocket, is_raw_audio=False)
     
+    # Set up conversation logging for phone channel
+    if conversation_logger:
+        session_id = f"acs-{uuid.uuid4()}"
+        phone_number = request.args.get("phone")  # Get phone from query params if available
+        handler.set_conversation_logger(conversation_logger, session_id, "phone", phone_number)
+    
     # Connect to Voice Live API in background
     asyncio.create_task(handler.connect())
     
@@ -336,6 +415,14 @@ async def acs_ws():
             await handler.acs_to_voicelive(msg)
     except Exception:
         logger.exception("ACS WebSocket connection closed")
+    finally:
+        # End conversation logging
+        if conversation_logger and handler.session_id:
+            try:
+                await conversation_logger.end_conversation(handler.session_id)
+                logger.info("Conversation logging ended")
+            except Exception as e:
+                logger.error(f"Error ending conversation: {e}")
 
 
 @app.websocket("/web/ws")
@@ -367,6 +454,11 @@ async def web_ws():
     
     # Set up incoming WebSocket (browser sends raw audio bytes)
     await handler.init_incoming_websocket(websocket, is_raw_audio=True)
+    
+    # Set up conversation logging for web channel
+    if conversation_logger:
+        session_id = f"web-{uuid.uuid4()}"
+        handler.set_conversation_logger(conversation_logger, session_id, "web")
     
     # DON'T connect to Voice Live immediately - wait for custom instructions or first message
     # This allows the frontend to send custom instructions first
@@ -419,6 +511,14 @@ async def web_ws():
                 await handler.handle_websocket_message(msg)
     except Exception:
         logger.exception("Web WebSocket connection closed")
+    finally:
+        # End conversation logging
+        if conversation_logger and handler.session_id:
+            try:
+                await conversation_logger.end_conversation(handler.session_id)
+                logger.info("Conversation logging ended")
+            except Exception as e:
+                logger.error(f"Error ending conversation: {e}")
 
 
 # ============================================================
@@ -434,6 +534,26 @@ async def index():
         HTML: The main chat interface (index.html) with audio streaming capabilities
     """
     return await app.send_static_file("index.html")
+
+
+@app.route("/static/<path:filename>")
+async def serve_static(filename):
+    """
+    Serve static files from the static directory.
+    
+    This route handles all static assets including the admin dashboard,
+    JavaScript files, CSS files, and images.
+    
+    Args:
+        filename: Path to the file within the static directory
+        
+    Returns:
+        File: The requested static file
+    """
+    from quart import send_from_directory
+    import os
+    static_dir = os.path.join(os.path.dirname(__file__), 'static')
+    return await send_from_directory(static_dir, filename)
 
 
 # ============================================================
@@ -770,7 +890,7 @@ async def save_test_logs():
         blob_name = f"test-{clean_timestamp}.json"
         
         # Import Azure Storage Blob client
-        from azure.storage.blob import BlobServiceClient
+        from azure.storage.blob import BlobServiceClient, ContentSettings
         import asyncio
         
         # Get connection string from config
@@ -968,6 +1088,391 @@ async def get_indexer_status():
     
     except Exception as e:
         logger.error(f"Error getting indexer status: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
+# ADMIN API ENDPOINTS - CONVERSATION REVIEW & FEEDBACK
+# ============================================================
+
+@app.route("/admin/api/conversations", methods=["GET"])
+@rate_limit(max_requests=RATE_LIMIT_API_COUNT, window_seconds=RATE_LIMIT_API_WINDOW)
+@require_auth_optional(azure_ad_auth)
+async def get_conversations():
+    """
+    List all conversations with optional filters.
+    
+    Query parameters:
+        - page: Page number (default: 1)
+        - page_size: Items per page (default: 50)
+        - channel: Filter by channel (web|phone)
+        - start_date: Filter from date (ISO format)
+        - end_date: Filter until date (ISO format)
+    
+    Returns:
+        JSON: List of conversations with metadata
+    """
+    logger_endpoint = logging.getLogger("get_conversations")
+    
+    try:
+        # Parse query parameters
+        page = int(request.args.get("page", 1))
+        page_size = int(request.args.get("page_size", 50))
+        channel_filter = request.args.get("channel")
+        start_date_str = request.args.get("start_date")
+        end_date_str = request.args.get("end_date")
+        
+        # Parse dates
+        start_date = datetime.fromisoformat(start_date_str) if start_date_str else None
+        end_date = datetime.fromisoformat(end_date_str) if end_date_str else None
+        
+        # Get conversations from storage
+        conversations_list = []
+        container_client = conversation_logger.blob_service_client.get_container_client("conversations")
+        
+        async for blob in container_client.list_blobs():
+            # Apply date filter
+            if start_date and blob.creation_time and blob.creation_time.replace(tzinfo=timezone.utc) < start_date:
+                continue
+            if end_date and blob.creation_time and blob.creation_time.replace(tzinfo=timezone.utc) > end_date:
+                continue
+            
+            # Download conversation
+            blob_client = container_client.get_blob_client(blob.name)
+            content = await blob_client.download_blob()
+            conv = json.loads(await content.readall())
+            
+            # Apply channel filter
+            if channel_filter and conv.get("channel") != channel_filter:
+                continue
+            
+            # Add to list
+            conversations_list.append({
+                "id": conv.get("id"),
+                "timestamp": conv.get("timestamp"),
+                "channel": conv.get("channel"),
+                "total_turns": len(conv.get("turns", [])),
+                "duration_seconds": conv.get("metadata", {}).get("duration_seconds", 0),
+                "pii_detected": bool(conv.get("pii_detected_types")),
+            })
+        
+        # Sort by timestamp (newest first)
+        conversations_list.sort(key=lambda x: x["timestamp"], reverse=True)
+        
+        # Paginate
+        total_count = len(conversations_list)
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated = conversations_list[start_idx:end_idx]
+        
+        return jsonify({
+            "conversations": paginated,
+            "page": page,
+            "page_size": page_size,
+            "total_count": total_count,
+            "total_pages": (total_count + page_size - 1) // page_size
+        }), 200
+        
+    except Exception as e:
+        logger_endpoint.error(f"Error getting conversations: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/admin/api/conversations/<conversation_id>", methods=["GET"])
+@rate_limit(max_requests=RATE_LIMIT_API_COUNT, window_seconds=RATE_LIMIT_API_WINDOW)
+@require_auth_optional(azure_ad_auth)
+async def get_conversation_detail(conversation_id: str):
+    """
+    Get detailed conversation data.
+    
+    Returns:
+        JSON: Full conversation with all turns
+    """
+    logger_endpoint = logging.getLogger("get_conversation_detail")
+    
+    try:
+        container_client = conversation_logger.blob_service_client.get_container_client("conversations")
+        
+        # Find conversation by ID
+        async for blob in container_client.list_blobs():
+            if conversation_id in blob.name:
+                blob_client = container_client.get_blob_client(blob.name)
+                content = await blob_client.download_blob()
+                conv = json.loads(await content.readall())
+                return jsonify(conv), 200
+        
+        return jsonify({"error": "Conversation not found"}), 404
+        
+    except Exception as e:
+        logger_endpoint.error(f"Error getting conversation detail: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/admin/api/feedback/<conversation_id>", methods=["POST"])
+@rate_limit(max_requests=RATE_LIMIT_API_COUNT, window_seconds=RATE_LIMIT_API_WINDOW)
+@require_auth_optional(azure_ad_auth)
+async def submit_feedback():
+    """
+    Submit feedback for a conversation turn.
+    
+    Request body:
+        {
+            "conversation_id": "conv-...",
+            "turn_number": 2,
+            "rating": 4,
+            "tags": ["helpful", "accurate"],
+            "admin_comment": "Good response",
+            "corrected_response": "..."
+        }
+    
+    Returns:
+        JSON: Feedback ID
+    """
+    logger_endpoint = logging.getLogger("submit_feedback")
+    
+    try:
+        data = await request.get_json()
+        
+        conversation_id = data.get("conversation_id")
+        turn_number = data.get("turn_number")
+        rating = data.get("rating", 3)
+        tags = data.get("tags", [])
+        admin_comment = data.get("admin_comment", "")
+        corrected_response = data.get("corrected_response", "")
+        
+        # Create feedback entry
+        feedback_id = f"fb-{conversation_id}-turn{turn_number}"
+        feedback = {
+            "feedback_id": feedback_id,
+            "conversation_id": conversation_id,
+            "turn_number": turn_number,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "admin_user": g.get("user_email", "admin@pharmacy.com"),
+            "rating": rating,
+            "tags": tags,
+            "admin_comment": admin_comment,
+            "corrected_response": corrected_response,
+            "approved": False
+        }
+        
+        # Save to storage
+        feedback_container = conversation_logger.blob_service_client.get_container_client("feedback")
+        
+        # Ensure container exists
+        try:
+            await feedback_container.get_container_properties()
+        except:
+            await feedback_container.create_container()
+        
+        blob_name = f"{feedback_id}.json"
+        blob_client = feedback_container.get_blob_client(blob_name)
+        await blob_client.upload_blob(
+            json.dumps(feedback, indent=2, ensure_ascii=False),
+            overwrite=True,
+            content_settings=ContentSettings(content_type="application/json")
+        )
+        
+        logger_endpoint.info(f"Feedback submitted: {feedback_id}")
+        
+        return jsonify({"feedback_id": feedback_id, "status": "success"}), 201
+        
+    except Exception as e:
+        logger_endpoint.error(f"Error submitting feedback: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/admin/api/approve/<conversation_id>/<int:turn_number>", methods=["POST"])
+@rate_limit(max_requests=RATE_LIMIT_API_COUNT, window_seconds=RATE_LIMIT_API_WINDOW)
+@require_auth_optional(azure_ad_auth)
+async def approve_response(conversation_id: str, turn_number: int):
+    """
+    Approve a response for learning (index in Azure AI Search).
+    
+    Returns:
+        JSON: Approval status
+    """
+    logger_endpoint = logging.getLogger("approve_response")
+    
+    try:
+        if not feedback_indexer:
+            return jsonify({"error": "Feedback indexer not configured"}), 503
+        
+        # Get conversation
+        container_client = conversation_logger.blob_service_client.get_container_client("conversations")
+        
+        conv = None
+        async for blob in container_client.list_blobs():
+            if conversation_id in blob.name:
+                blob_client = container_client.get_blob_client(blob.name)
+                content = await blob_client.download_blob()
+                conv = json.loads(await content.readall())
+                break
+        
+        if not conv:
+            return jsonify({"error": "Conversation not found"}), 404
+        
+        # Find the turn
+        turn = next((t for t in conv.get("turns", []) if t["turn_number"] == turn_number), None)
+        if not turn:
+            return jsonify({"error": "Turn not found"}), 404
+        
+        # Get feedback if exists
+        feedback_id = f"fb-{conversation_id}-turn{turn_number}"
+        feedback_container = conversation_logger.blob_service_client.get_container_client("feedback")
+        
+        corrected_response = None
+        rating = 5
+        tags = ["approved"]
+        admin_comment = ""
+        
+        try:
+            feedback_blob = feedback_container.get_blob_client(f"{feedback_id}.json")
+            feedback_content = await feedback_blob.download_blob()
+            feedback_data = json.loads(await feedback_content.readall())
+            
+            corrected_response = feedback_data.get("corrected_response")
+            rating = feedback_data.get("rating", 5)
+            tags = feedback_data.get("tags", ["approved"])
+            admin_comment = feedback_data.get("admin_comment", "")
+            
+            # Mark as approved
+            feedback_data["approved"] = True
+            await feedback_blob.upload_blob(
+                json.dumps(feedback_data, indent=2, ensure_ascii=False),
+                overwrite=True
+            )
+        except:
+            pass  # No feedback exists
+        
+        # Build context from previous turns
+        context = ""
+        if turn_number > 1:
+            prev_turns = [t for t in conv.get("turns", []) if t["turn_number"] < turn_number][-2:]
+            context = " ".join([f"U: {t['user_message']} B: {t['bot_response']}" for t in prev_turns])
+        
+        # Index in Azure AI Search
+        doc_id = await feedback_indexer.index_approved_response(
+            conversation_id=conversation_id,
+            turn_number=turn_number,
+            user_query=turn["user_message"],
+            approved_response=corrected_response or turn["bot_response"],
+            original_response=turn["bot_response"],
+            admin_comment=admin_comment,
+            rating=rating,
+            tags=tags,
+            context=context
+        )
+        
+        logger_endpoint.info(f"Approved and indexed response: {doc_id}")
+        
+        return jsonify({"doc_id": doc_id, "status": "approved"}), 200
+        
+    except Exception as e:
+        logger_endpoint.error(f"Error approving response: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/admin/api/analytics/dashboard", methods=["GET"])
+@rate_limit(max_requests=RATE_LIMIT_API_COUNT, window_seconds=RATE_LIMIT_API_WINDOW)
+@require_auth_optional(azure_ad_auth)
+async def get_analytics_dashboard():
+    """
+    Get comprehensive analytics dashboard data.
+    
+    Returns:
+        JSON: Dashboard metrics and trends
+    """
+    logger_endpoint = logging.getLogger("get_analytics_dashboard")
+    
+    try:
+        if not analytics:
+            return jsonify({"error": "Analytics not initialized"}), 503
+        
+        dashboard_data = await analytics.get_dashboard_data()
+        return jsonify(dashboard_data), 200
+        
+    except Exception as e:
+        logger_endpoint.error(f"Error getting analytics: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
+# GDPR COMPLIANCE ENDPOINTS
+# ============================================================
+
+@app.route("/api/gdpr/data-access", methods=["POST"])
+@rate_limit(max_requests=10, window_seconds=3600)
+async def gdpr_data_access():
+    """
+    Handle GDPR data access request (Right to Access).
+    
+    Request body:
+        {
+            "session_id": "..." OR "phone_number": "+39..."
+        }
+    
+    Returns:
+        JSON: User's conversation data (anonymized)
+    """
+    logger_endpoint = logging.getLogger("gdpr_data_access")
+    
+    try:
+        data = await request.get_json()
+        session_id = data.get("session_id")
+        phone_number = data.get("phone_number")
+        
+        if not gdpr_compliance:
+            return jsonify({"error": "GDPR compliance not initialized"}), 503
+        
+        result = await gdpr_compliance.handle_data_access_request(
+            session_id=session_id,
+            phone_number=phone_number
+        )
+        
+        if result:
+            return jsonify(result), 200
+        else:
+            return jsonify({"message": "No data found"}), 404
+            
+    except Exception as e:
+        logger_endpoint.error(f"Error handling data access request: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/gdpr/data-erasure", methods=["DELETE"])
+@rate_limit(max_requests=10, window_seconds=3600)
+async def gdpr_data_erasure():
+    """
+    Handle GDPR data erasure request (Right to be Forgotten).
+    
+    Request body:
+        {
+            "session_id": "..." OR "phone_number": "+39..."
+        }
+    
+    Returns:
+        JSON: Deletion summary
+    """
+    logger_endpoint = logging.getLogger("gdpr_data_erasure")
+    
+    try:
+        data = await request.get_json()
+        session_id = data.get("session_id")
+        phone_number = data.get("phone_number")
+        
+        if not gdpr_compliance:
+            return jsonify({"error": "GDPR compliance not initialized"}), 503
+        
+        result = await gdpr_compliance.handle_data_erasure_request(
+            session_id=session_id,
+            phone_number=phone_number,
+            requester_info={"ip": request.remote_addr}
+        )
+        
+        return jsonify(result), 200
+            
+    except Exception as e:
+        logger_endpoint.error(f"Error handling data erasure request: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 
