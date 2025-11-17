@@ -1,4 +1,4 @@
-# Call Center Voice Agent Accelerator with Azure Voice Live API
+# Farmacia BOT - AI Voice Assistant with Azure Voice Live API
 
 > **✨ Nuovo**: Setup completamente automatizzato! Vedi [AUTOMATED_SETUP.md](AUTOMATED_SETUP.md) per deployment con un comando.
 
@@ -7,11 +7,20 @@
 | [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Azure-Samples/call-center-voice-agent-accelerator) | [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/Azure-Samples/call-center-voice-agent-accelerator)
 |---|---|
 
-Welcome to the *Call Center Real-time Voice Agent* solution accelerator. It's a lightweight template to create speech-to-speech voice agents that deliver personalized self-service experiences and natural-sounding voices, seamlessly integrated with telephony systems. This solution accelerator uses  **Azure Voice Live API** and **Azure Communication Services** — Start locally, deploy later to Azure Web App. No PSTN number needed.
+Welcome to **Farmacia BOT**, an intelligent AI voice assistant for pharmacy customer service. This solution provides real-time speech-to-speech interactions in Italian, powered by **Azure Voice Live API** and integrated with **Azure Communication Services** for telephony support. The bot helps customers with product inquiries, provides pharmacy information, and delivers personalized assistance through natural-sounding Italian voices.
 
-The Azure voice live API is a solution enabling low-latency, high-quality speech to speech interactions for voice agents. The API is designed for developers seeking scalable and efficient voice-driven experiences as it eliminates the need to manually orchestrate multiple components. By integrating speech recognition, generative AI, and text to speech functionalities into a single, unified interface, it provides an end-to-end solution for creating seamless experiences. Learn more about [Azure Voice Live API](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live).
+**Farmacia BOT** leverages Azure Voice Live API to enable low-latency, high-quality speech-to-speech interactions in Italian. The bot is specifically designed for pharmacy customer service, providing information about products (sunscreens, medications, supplements), opening hours, contact details, and general pharmacy services. Learn more about [Azure Voice Live API](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live).
 
-The Azure Communication Services Calls Automation APIs provide telephony integration and real-time event triggers to perform actions based on custom business logic specific to their domain. Within the call automation APIs developers can use simple AI powered APIs, which can be used to play personalized greeting messages, recognize conversational voice inputs to gather information on contextual questions to drive a more self-service model with customers, use sentiment analysis to improve customer service overall. Learn more about [Azure Communication Services (Call Automation)](https://learn.microsoft.com/azure/communication-services/concepts/call-automation/call-automation).
+The solution integrates with Azure Communication Services for telephony capabilities, allowing customers to call the pharmacy and interact with the AI assistant. The bot uses Azure AI Search for RAG (Retrieval-Augmented Generation) to provide accurate, context-aware responses based on pharmacy product data. Learn more about [Azure Communication Services (Call Automation)](https://learn.microsoft.com/azure/communication-services/concepts/call-automation/call-automation).
+
+## Multi-Environment Setup
+
+This solution supports **two separate environments** for development and testing workflows:
+
+- **Test Environment**: Used for development, testing new features, and validating changes before production deployment
+- **Production Environment**: Production-ready environment for live customer interactions
+
+Each environment has its own isolated Azure resources (Container Apps, Storage, AI services) managed through Azure Developer CLI (`azd`) with separate environment configurations. This ensures safe testing without affecting the production bot.
 
 ## Important Security Notice
 
@@ -30,28 +39,43 @@ ACS currently does not support Managed Identity. The ACS connection string is st
 </div>
 
 ## Features
-This sample demonstrates how to build a real-time voice agent using the [Azure Speech Voice Live API](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live).
+**Farmacia BOT** is an intelligent pharmacy assistant built with [Azure Speech Voice Live API](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live) that provides real-time customer service in Italian.
 
-The solution includes:
-- A backend service that connects to the **Voice Live API** for real-time ASR, LLM and TTS
-- Two client options: **Web browser** (microphone/speaker) and **Azure Communication Services (ACS)** phone calls
-- Flexible configuration to customize prompts, ASR, TTS, and behavior
-- Easy extension to other client types such as [Audiohook](https://learn.microsoft.com/azure/ai-services/speech-service/how-to-use-audiohook)
-- **🆕 Admin Feedback System**: Review conversations, provide feedback, and enable bot learning through RAG (Retrieval-Augmented Generation)
+### Core Capabilities:
+- 🗣️ **Real-time Voice Interactions**: Natural Italian conversations using Azure Voice Live API (ASR, GPT-4o-mini, TTS)
+- 🔍 **Product Search**: Integrated with Azure AI Search for accurate information about pharmacy products (sunscreens, medications, supplements)
+- 📱 **Multi-Channel Support**: Web browser interface and Azure Communication Services phone integration
+- 🇮🇹 **Italian Language**: Fully optimized for Italian language interactions with contextual understanding
+- ⚙️ **Flexible Configuration**: Customizable prompts, voice settings, and behavior parameters
+
+### Admin & Learning Features:
+- **🆕 Admin Feedback System**: Web dashboard to review conversations, provide ratings, and approve responses
 - **🔒 GDPR Compliance**: Automatic PII anonymization for Italian context (phone numbers, fiscal codes, names, medical terms)
-- **📊 Analytics Dashboard**: Track conversation quality, ratings, and approved responses
+- **📊 Analytics Dashboard**: Track conversation quality, user satisfaction, and bot performance metrics
+- **🤖 Continuous Learning**: Approved responses are indexed in Azure AI Search for RAG-based improvements
+- **🔐 Secure Storage**: Encrypted anonymization maps stored in Azure Key Vault with separate data access controls
 
 > You can also try the Voice Live API via [Azure AI Foundry](https://ai.azure.com/foundry) for quick experimentation before deploying this template to your own Azure subscription.
 
-### Feedback System & Learning
+### Pharmacy-Specific Features
 
-The solution includes a comprehensive feedback system that enables continuous improvement of bot responses:
+**Farmacia BOT** includes specialized capabilities for pharmacy customer service:
 
-- **Conversation Tracking**: All conversations are automatically logged with PII anonymization
-- **Admin Dashboard**: Web interface for reviewing conversations and providing feedback
-- **Learning Integration**: Approved responses are indexed in Azure AI Search for RAG-based learning
-- **GDPR Compliant**: Data access, erasure, and retention policies with encrypted storage
-- **Analytics**: Comprehensive metrics on conversation quality and bot performance
+- **Product Information**: Answer questions about sunscreens, medications, supplements, and other pharmacy products
+- **Service Details**: Provide information about pharmacy opening hours, contact numbers, and services
+- **Contextual Understanding**: Italian language processing optimized for medical and pharmaceutical terminology
+- **Knowledge Base**: Azure AI Search integration with pharmacy product catalog (200+ products)
+- **Safety & Compliance**: PII anonymization for medical information and Italian privacy regulations (GDPR)
+
+### Admin Dashboard & Continuous Improvement
+
+The integrated admin system enables pharmacy staff to monitor and improve bot performance:
+
+- **Conversation Review**: Access all customer interactions with automatic PII anonymization
+- **Quality Feedback**: Rate conversations and approve high-quality responses for learning
+- **RAG Learning**: Approved responses are automatically indexed in Azure AI Search to improve future answers
+- **Analytics**: Track conversation metrics, customer satisfaction, search usage, and response quality
+- **GDPR Tools**: Data access, erasure, and retention management with audit logging
 
 📖 **Documentation**:
 - [Feedback System Implementation Summary](./FEEDBACK_SYSTEM_IMPLEMENTATION_SUMMARY.md) - Complete technical details
@@ -162,9 +186,11 @@ If you're not using one of the above options for opening the project, then you'l
  
 ### Deploying
 
-Once you've opened the project in [Codespaces](#github-codespaces) or in [Dev Containers](#vs-code-dev-containers) or [locally](#local-environment), you can deploy it to Azure following the following steps. 
+Once you've opened the project in [Codespaces](#github-codespaces) or in [Dev Containers](#vs-code-dev-containers) or [locally](#local-environment), you can deploy **Farmacia BOT** to Azure following these steps. 
 
 To change the `azd` parameters from the default values, follow the steps [here](./docs/customizing_azd_parameters.md). 
+
+#### Deploy to Test Environment
 
 1. Login to Azure:
 
@@ -172,34 +198,57 @@ To change the `azd` parameters from the default values, follow the steps [here](
     azd auth login
     ```
 
-2. Provision and deploy all the resources:
+2. Provision and deploy all resources to the test environment:
 
     ```shell
-    azd up
+    azd up --environment test
     ```
-    It will prompt you to provide an `azd` environment name (like "flask-app"), select a subscription from your Azure account, and select a location (like "eastus"). Then it will provision the resources in your account and deploy the latest code. If you get an error with deployment, changing the location can help, as there may be availability constraints for some of the resources.
+    It will prompt you to provide an environment name (use "test"), select a subscription from your Azure account, and select a location (recommended: "swedencentral"). Then it will provision the resources in your account and deploy the latest code.
 
-3. When `azd` has finished deploying, you'll see an endpoint URI in the command output. Visit that URI, and you should see the API output! 🎉
+3. When `azd` has finished deploying, you'll see the endpoint URI in the command output. Visit that URI to access the bot web interface! 🎉
 
-4. When you've made any changes to the app code, you can just run:
+4. When you've made changes to the app code, deploy updates with:
 
     ```shell
-    azd deploy
+    azd deploy --environment test
     ```
+
+#### Deploy to Production Environment
+
+For production deployment, use a separate environment:
+
+1. Provision and deploy to production:
+
+    ```shell
+    azd up --environment prod
+    ```
+
+2. Deploy updates to production:
+
+    ```shell
+    azd deploy --environment prod
+    ```
+
+#### Environment Management
+
+- **Test Environment**: Use for development, testing new features, and validating changes
+- **Production Environment**: Use for live customer interactions with the pharmacy bot
+- Each environment maintains separate Azure resources, configurations, and data storage
+- Switch between environments by specifying `--environment <name>` in `azd` commands
 
 >[!NOTE]
 >AZD will also setup the local Python environment for you, using `venv` and installing the required packages.
 
-
 >[!NOTE]
->- Region: swedencentral is strongly recommended due to AI Foundry availability.
->- Post-Deployment: You can also setup ACS Event Grid subscription and PSTN to use the ACS client.
+>- Region: **swedencentral** is strongly recommended due to AI Foundry availability.
+>- Post-Deployment: You can setup ACS Event Grid subscription and PSTN phone numbers for phone-based interactions.
+>- Admin Dashboard: Access the admin feedback system at `https://<your-app-url>/static/admin/index.html`
 
 
 
-## Testing the Agent
+## Testing Farmacia BOT
 
-After deployment, you can verify that your Voice Agent is running correctly using either the Web Client (for quick testing) or the ACS Phone Client (for simulating a real-world call center scenario).
+After deployment, you can test **Farmacia BOT** using multiple methods to verify functionality and bot performance.
 
 ### 🧪 Test Bot - Simulazione Utenti
 
@@ -219,29 +268,41 @@ Testa automaticamente il bot con conversazioni simulate. Accedi a `/static/test-
 
 **I risultati dei test vengono salvati automaticamente nel container `testlogs` su Azure Storage** per analisi successive. Vedi [docs/TEST_LOGS_SETUP.md](docs/TEST_LOGS_SETUP.md) e [docs/TEST_HISTORY_FEATURE.md](docs/TEST_HISTORY_FEATURE.md) per maggiori dettagli.
 
-### 🌐 Web Client (Test Mode)
+### 🌐 Web Client (Interactive Testing)
 
-Use this browser-based client to confirm your Container App is up and responding.
+Use the browser-based client to test the pharmacy bot with real voice or text interactions.
 
-1. Go to the [Azure Portal](https://portal.azure.com) and navigate to the **Resource Group** created by your deployment.
+1. Go to the [Azure Portal](https://portal.azure.com) and navigate to your **Resource Group**.
 2. Find and open the **Container App** resource.
 3. On the **Overview** page, copy the **Application URL**.
-4. Open the URL in your browser — a demo webpage should load.
-5. Click **Start Talking to Agent** to begin a voice session using your browser’s microphone and speaker.
-6. Click **Stop Conversation** to end the session.
+4. Open the URL in your browser — the Farmacia BOT interface will load.
+5. **Voice Mode**: Click the microphone button and speak your question in Italian (e.g., "Vendete creme solari?")
+6. **Text Mode**: Type your message and press Enter to interact with the bot via text
+7. The bot will respond with information about pharmacy products, hours, or services.
 
-> ⚠️ This web client is intended for testing purposes only. Use the ACS client below for production-like call flow testing.
+> 💡 Try asking about: sunscreens (creme solari), medications (farmaci), opening hours (orari), or contact information (contatto).
+
+### 📊 Admin Dashboard
+
+Monitor and improve bot performance through the admin feedback dashboard:
+
+1. Navigate to `https://<your-app-url>/static/admin/index.html`
+2. **Conversations Tab**: Review all customer interactions with anonymized PII
+3. **Feedback Tab**: View conversation ratings and comments
+4. **Analytics Tab**: Track metrics, search usage, and response quality
+5. **Provide Feedback**: Rate conversations and approve responses for learning
+
+> ⚠️ The web client is suitable for testing and demonstration. Use the ACS phone client below for production call center scenarios.
 
 
 
-📞 ACS Client (Call Center Scenario)
+### 📞 ACS Phone Client (Production Scenario)
 
-This simulates a real inbound phone call to your voice agent using **Azure Communication Services (ACS)**.
-
+This enables real inbound phone calls to **Farmacia BOT** using **Azure Communication Services (ACS)**, simulating actual pharmacy customer calls.
 
 #### 1. Set Up Incoming Call Webhook
 
-1. In the same resource group, find and open the **Communication Services** resource.
+1. In your resource group, find and open the **Communication Services** resource.
 2. In the left-hand menu, click **Events**.
 3. Click **+ Event Subscription** and fill in the following:
 
@@ -257,20 +318,20 @@ This simulates a real inbound phone call to your voice agent using **Azure Commu
 
 ![Event Subscription screenshot](./docs/images/acs_eventsubscription_v0.0.1.png)
 
-
 #### 2. Get a Phone Number
 
-If you haven't already, obtain a phone number for your ACS resource:
+If you haven't already, obtain an Italian phone number for your ACS resource:
 
 👉 [How to get a phone number (Microsoft Docs)](https://learn.microsoft.com/azure/communication-services/quickstarts/telephony/get-phone-number?tabs=windows&pivots=platform-azp-new)
 
-
-#### 3. Call the Agent
+#### 3. Call Farmacia BOT
 
 Once your event subscription is configured and the phone number is active:
 
-- Dial the ACS number.
-- Your call will connect to the real-time voice agent powered by Azure Voice Live.
+- Dial the ACS phone number from any phone.
+- Your call will connect to **Farmacia BOT** powered by Azure Voice Live.
+- Speak in Italian to ask about pharmacy products, hours, or services.
+- The conversation will be automatically logged and available in the admin dashboard for review.
 
 
 #### Local execution
