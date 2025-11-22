@@ -39,6 +39,7 @@ from app.handler.acs_event_handler import AcsEventHandler
 from app.handler.acs_media_handler import ACSMediaHandler
 from app.document_processor import DocumentProcessor
 from app.auth import AzureADAuth, require_auth, require_auth_optional
+from azure.storage.blob import ContentSettings
 from dotenv import load_dotenv
 from quart import Quart, request, websocket, Response, jsonify, g
 from quart_cors import cors
@@ -164,9 +165,11 @@ app.config["AZURE_STORAGE_CONTAINER"] = os.environ.get("AZURE_STORAGE_CONTAINER"
 # ============================================================
 # AZURE OPENAI CONFIGURATION
 # ============================================================
-# Azure OpenAI configuration (for embeddings in document indexing)
-app.config["AZURE_OPENAI_ENDPOINT"] = os.environ.get("AZURE_OPENAI_ENDPOINT")
-app.config["AZURE_OPENAI_KEY"] = os.environ.get("AZURE_OPENAI_KEY")
+# Azure OpenAI configuration (for embeddings in document indexing and AI evaluation)
+# Falls back to Voice Live endpoint if not separately configured
+# Uses Managed Identity for authentication (no API key required in container)
+app.config["AZURE_OPENAI_ENDPOINT"] = os.environ.get("AZURE_OPENAI_ENDPOINT") or os.environ.get("AZURE_VOICE_LIVE_ENDPOINT")
+app.config["AZURE_OPENAI_KEY"] = os.environ.get("AZURE_OPENAI_KEY")  # Optional: only for local development
 app.config["AZURE_OPENAI_EMBEDDING_DEPLOYMENT"] = os.environ.get("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002")
 
 # ============================================================
@@ -198,15 +201,17 @@ else:
 acs_handler = AcsEventHandler(app.config)
 
 # Initialize document processor for upload, chunking, and indexing
+# Uses Voice Live endpoint with Managed Identity for embeddings
 document_processor = DocumentProcessor({
     "azure_storage_connection_string": app.config["AZURE_STORAGE_CONNECTION_STRING"],
     "azure_storage_container": app.config["AZURE_STORAGE_CONTAINER"],
     "azure_search_endpoint": app.config["AZURE_SEARCH_ENDPOINT"],
     "azure_search_index": app.config["AZURE_SEARCH_INDEX"],
     "azure_search_api_key": app.config["AZURE_SEARCH_API_KEY"],
-    "azure_openai_endpoint": app.config["AZURE_OPENAI_ENDPOINT"],
-    "azure_openai_key": app.config["AZURE_OPENAI_KEY"],
+    "azure_openai_endpoint": app.config["AZURE_VOICE_LIVE_ENDPOINT"],  # Use Voice Live endpoint
+    "azure_openai_key": None,  # Managed Identity - no API key needed
     "azure_openai_embedding_deployment": app.config["AZURE_OPENAI_EMBEDDING_DEPLOYMENT"],
+    "azure_user_assigned_identity_client_id": app.config.get("AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID"),  # For Managed Identity
     "chunk_size": 1000,  # Size of text chunks for indexing
     "chunk_overlap": 200  # Overlap between chunks to preserve context
 })
@@ -218,18 +223,20 @@ from app.conversation_logger import get_conversation_logger
 from app.gdpr_compliance import get_gdpr_compliance
 from app.feedback_indexer import get_feedback_indexer
 from app.analytics import get_analytics
+from app.ai_evaluator import get_ai_evaluator
 
 # Initialize conversation logger with PII anonymization
 conversation_logger = None
 gdpr_compliance = None
 feedback_indexer = None
 analytics = None
+ai_evaluator = None
 
 # Initialize at startup
 @app.before_serving
 async def initialize_feedback_system():
     """Initialize conversation logging and feedback system."""
-    global conversation_logger, gdpr_compliance, feedback_indexer, analytics
+    global conversation_logger, gdpr_compliance, feedback_indexer, analytics, ai_evaluator
     
     storage_conn = app.config["AZURE_STORAGE_CONNECTION_STRING"]
     
@@ -251,21 +258,47 @@ async def initialize_feedback_system():
             logger.info("Analytics initialized")
             
             # Initialize feedback indexer if search is configured
+            # Uses Voice Live endpoint with Managed Identity for embeddings
             if (app.config.get("AZURE_SEARCH_ENDPOINT") and 
                 app.config.get("AZURE_SEARCH_API_KEY") and
-                app.config.get("AZURE_OPENAI_ENDPOINT") and
-                app.config.get("AZURE_OPENAI_KEY")):
+                app.config.get("AZURE_VOICE_LIVE_ENDPOINT")):
                 
                 feedback_indexer = get_feedback_indexer(
                     search_endpoint=app.config["AZURE_SEARCH_ENDPOINT"],
                     search_api_key=app.config["AZURE_SEARCH_API_KEY"],
                     storage_connection_string=storage_conn,
-                    openai_endpoint=app.config["AZURE_OPENAI_ENDPOINT"],
-                    openai_api_key=app.config["AZURE_OPENAI_KEY"],
-                    embedding_model=app.config.get("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002")
+                    openai_endpoint=app.config["AZURE_VOICE_LIVE_ENDPOINT"],  # Use Voice Live endpoint
+                    openai_api_key=None,  # Managed Identity - no API key needed
+                    embedding_model=app.config.get("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002"),
+                    client_id=app.config.get("AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID")  # For Managed Identity
                 )
                 await feedback_indexer.initialize()
-                logger.info("Feedback indexer initialized")
+                logger.info("Feedback indexer initialized with Managed Identity")
+            
+            # Initialize AI evaluator for automatic response evaluation
+            # Uses Azure Voice Live endpoint with Managed Identity authentication
+            if app.config.get("AZURE_VOICE_LIVE_ENDPOINT"):
+                
+                # Use Voice Live model for evaluation
+                # Use VOICE_LIVE_MODEL
+                model_name = (
+                    app.config.get("VOICE_LIVE_MODEL")
+                ).strip()  # Remove any whitespace including leading/trailing spaces
+                
+                # Additional cleanup: remove any internal extra spaces
+                model_name = " ".join(model_name.split())
+                
+                try:
+                    # Use Managed Identity for authentication (same as Voice Live)
+                    ai_evaluator = get_ai_evaluator(
+                        azure_openai_endpoint=app.config["AZURE_VOICE_LIVE_ENDPOINT"],
+                        deployment_name=model_name,
+                        client_id=app.config.get("AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID"),
+                    )
+                    logger.info(f"AI evaluator initialized with deployment: '{model_name}' using Managed Identity")
+                except Exception as e:
+                    logger.error(f"Failed to initialize AI evaluator with deployment '{model_name}': {e}")
+                    logger.warning("AI evaluation features will not be available")
         except Exception as e:
             logger.error(f"Error initializing feedback system: {e}")
 
@@ -1393,6 +1426,178 @@ async def get_analytics_dashboard():
         
     except Exception as e:
         logger_endpoint.error(f"Error getting analytics: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
+# AI EVALUATION ENDPOINTS
+# ============================================================
+
+@app.route("/admin/api/evaluate/<conversation_id>", methods=["POST"])
+@rate_limit(max_requests=RATE_LIMIT_API_COUNT, window_seconds=RATE_LIMIT_API_WINDOW)
+@require_auth_optional(azure_ad_auth)
+async def evaluate_conversation(conversation_id: str):
+    """
+    Valuta tutte le risposte della conversazione.
+    
+    Ritorna:
+        JSON: Risultati della valutazione con punteggi e priorità
+    """
+    logger_endpoint = logging.getLogger("evaluate_conversation")
+    
+    try:
+        if not ai_evaluator:
+            logger_endpoint.error("AI evaluator not initialized - check Azure OpenAI configuration")
+            return jsonify({"error": "AI evaluator not initialized - check Azure OpenAI configuration"}), 503
+        
+        if not conversation_logger:
+            logger_endpoint.error("Conversation logger not initialized")
+            return jsonify({"error": "Conversation logger not initialized"}), 503
+        
+        # Get conversation
+        logger_endpoint.info(f"Fetching conversation {conversation_id}")
+        container_client = conversation_logger.blob_service_client.get_container_client("conversations")
+        
+        conversation = None
+        async for blob in container_client.list_blobs():
+            if conversation_id in blob.name:
+                blob_client = container_client.get_blob_client(blob.name)
+                content = await blob_client.download_blob()
+                conversation = json.loads(await content.readall())
+                break
+        
+        if not conversation:
+            logger_endpoint.error(f"Conversation {conversation_id} not found in storage")
+            return jsonify({"error": "Conversation not found"}), 404
+        
+        # Evaluate conversation
+        logger_endpoint.info(f"Starting AI evaluation for conversation {conversation_id}")
+        evaluation = await ai_evaluator.evaluate_conversation(conversation)
+        logger_endpoint.info(f"AI evaluation completed for {conversation_id}")
+        
+        # Store evaluation in blob storage
+        evaluations_container = conversation_logger.blob_service_client.get_container_client("evaluations")
+        try:
+            await evaluations_container.get_container_properties()
+        except:
+            await evaluations_container.create_container()
+        
+        eval_blob_name = f"eval-{conversation_id}.json"
+        eval_blob_client = evaluations_container.get_blob_client(eval_blob_name)
+        await eval_blob_client.upload_blob(
+            json.dumps(evaluation, indent=2, ensure_ascii=False),
+            overwrite=True,
+            content_settings=ContentSettings(content_type="application/json")
+        )
+        
+        logger_endpoint.info(
+            f"Evaluated conversation {conversation_id}: "
+            f"score={evaluation['overall_score']}, needs_review={evaluation['needs_review']}"
+        )
+        
+        return jsonify(evaluation), 200
+        
+    except Exception as e:
+        logger_endpoint.error(f"Error evaluating conversation: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/admin/api/evaluate/<conversation_id>/<int:turn_number>", methods=["POST"])
+@rate_limit(max_requests=RATE_LIMIT_API_COUNT, window_seconds=RATE_LIMIT_API_WINDOW)
+@require_auth_optional(azure_ad_auth)
+async def evaluate_turn(conversation_id: str, turn_number: int):
+    """
+    Valuta una singola risposta della conversazione.
+    
+    Ritorna:
+        JSON: Risultati della valutazione per la risposta
+    """
+    logger_endpoint = logging.getLogger("evaluate_turn")
+    
+    try:
+        if not ai_evaluator:
+            return jsonify({"error": "AI evaluator not initialized"}), 503
+        
+        # Get conversation
+        container_client = conversation_logger.blob_service_client.get_container_client("conversations")
+        
+        conversation = None
+        async for blob in container_client.list_blobs():
+            if conversation_id in blob.name:
+                blob_client = container_client.get_blob_client(blob.name)
+                content = await blob_client.download_blob()
+                conversation = json.loads(await content.readall())
+                break
+        
+        if not conversation:
+            return jsonify({"error": "Conversation not found"}), 404
+        
+        # Find the specific turn
+        turns = conversation.get("turns", [])
+        turn = next((t for t in turns if t.get("turn_number") == turn_number), None)
+        
+        if not turn:
+            return jsonify({"error": "Turn not found"}), 404
+        
+        # Build context from previous turns
+        context = ""
+        previous_turns = [t for t in turns if t.get("turn_number", 0) < turn_number]
+        if previous_turns:
+            context_parts = []
+            for prev_turn in previous_turns[-3:]:  # Last 3 turns
+                context_parts.append(
+                    f"Turn {prev_turn.get('turn_number')}: "
+                    f"User: {prev_turn.get('user_message')} | "
+                    f"Bot: {prev_turn.get('bot_response')}"
+                )
+            context = "\n".join(context_parts)
+        
+        # Evaluate the turn
+        evaluation = await ai_evaluator.evaluate_response(
+            user_message=turn.get("user_message", ""),
+            bot_response=turn.get("bot_response", ""),
+            context=context if context else None
+        )
+        
+        logger_endpoint.info(
+            f"Evaluated turn {turn_number} in {conversation_id}: "
+            f"score={evaluation['overall_score']}, priority={evaluation['priority']}"
+        )
+        
+        return jsonify(evaluation), 200
+        
+    except Exception as e:
+        logger_endpoint.error(f"Error evaluating turn: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/admin/api/evaluations/<conversation_id>", methods=["GET"])
+@rate_limit(max_requests=RATE_LIMIT_API_COUNT, window_seconds=RATE_LIMIT_API_WINDOW)
+@require_auth_optional(azure_ad_auth)
+async def get_evaluation(conversation_id: str):
+    """
+    Get stored evaluation for a conversation.
+    
+    Returns:
+        JSON: Evaluation results if available
+    """
+    logger_endpoint = logging.getLogger("get_evaluation")
+    
+    try:
+        evaluations_container = conversation_logger.blob_service_client.get_container_client("evaluations")
+        
+        eval_blob_name = f"eval-{conversation_id}.json"
+        
+        try:
+            eval_blob_client = evaluations_container.get_blob_client(eval_blob_name)
+            content = await eval_blob_client.download_blob()
+            evaluation = json.loads(await content.readall())
+            return jsonify(evaluation), 200
+        except:
+            return jsonify({"message": "No evaluation found"}), 404
+        
+    except Exception as e:
+        logger_endpoint.error(f"Error getting evaluation: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 

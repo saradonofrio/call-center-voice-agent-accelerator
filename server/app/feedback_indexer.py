@@ -24,6 +24,8 @@ from azure.search.documents.indexes.models import (
 )
 from azure.storage.blob.aio import BlobServiceClient
 from azure.storage.blob import ContentSettings
+from azure.identity.aio import ManagedIdentityCredential, DefaultAzureCredential
+from openai import AsyncAzureOpenAI
 import openai
 
 logger = logging.getLogger(__name__)
@@ -49,7 +51,8 @@ class FeedbackIndexer:
         storage_connection_string: str,
         openai_endpoint: str = None,
         openai_api_key: str = None,
-        embedding_model: str = "text-embedding-ada-002"
+        embedding_model: str = "text-embedding-ada-002",
+        client_id: str = None
     ):
         """
         Initialize feedback indexer.
@@ -59,24 +62,25 @@ class FeedbackIndexer:
             search_api_key: Azure AI Search API key
             storage_connection_string: Azure Storage connection string
             openai_endpoint: Azure OpenAI endpoint for embeddings
-            openai_api_key: Azure OpenAI API key
+            openai_api_key: Azure OpenAI API key (optional if using Managed Identity)
             embedding_model: Embedding model deployment name
+            client_id: Managed Identity client ID (optional)
         """
         self.search_endpoint = search_endpoint
         self.search_credential = AzureKeyCredential(search_api_key)
         self.storage_connection_string = storage_connection_string
         self.embedding_model = embedding_model
+        self.openai_endpoint = openai_endpoint
+        self.openai_api_key = openai_api_key
+        self.client_id = client_id
         
-        # Azure OpenAI for embeddings
-        if openai_endpoint and openai_api_key:
-            openai.api_type = "azure"
-            openai.api_base = openai_endpoint
-            openai.api_key = openai_api_key
-            openai.api_version = "2023-05-15"
+        # Determine if using Managed Identity
+        self.use_managed_identity = (openai_endpoint and client_id and not openai_api_key)
         
         self.index_client = None
         self.search_client = None
         self.blob_service_client = None
+        self.openai_client = None
     
     async def initialize(self):
         """Initialize Azure clients and ensure index exists."""
@@ -97,6 +101,28 @@ class FeedbackIndexer:
             self.blob_service_client = BlobServiceClient.from_connection_string(
                 self.storage_connection_string
             )
+            
+            # Initialize OpenAI client for embeddings
+            if self.openai_endpoint:
+                if self.use_managed_identity:
+                    # Use Managed Identity
+                    credential = ManagedIdentityCredential(client_id=self.client_id)
+                    token = await credential.get_token("https://cognitiveservices.azure.com/.default")
+                    self.openai_client = AsyncAzureOpenAI(
+                        azure_endpoint=self.openai_endpoint,
+                        azure_ad_token=token.token,
+                        api_version="2024-02-01"
+                    )
+                    logger.info("Azure OpenAI client initialized with Managed Identity")
+                    await credential.close()
+                elif self.openai_api_key:
+                    # Use API key
+                    self.openai_client = AsyncAzureOpenAI(
+                        azure_endpoint=self.openai_endpoint,
+                        api_key=self.openai_api_key,
+                        api_version="2024-02-01"
+                    )
+                    logger.info("Azure OpenAI client initialized with API key")
             
             # Ensure index exists
             await self._ensure_index_exists()
@@ -293,13 +319,17 @@ class FeedbackIndexer:
             return []
     
     async def _generate_embedding(self, text: str) -> List[float]:
-        """Generate embedding for text using Azure OpenAI."""
+        """Generate embedding for text using Azure OpenAI with Managed Identity or API key."""
+        if not self.openai_client:
+            logger.warning("OpenAI client not initialized - returning zero vector")
+            return [0.0] * 1536
+            
         try:
-            response = await openai.Embedding.acreate(
+            response = await self.openai_client.embeddings.create(
                 input=text,
-                engine=self.embedding_model
+                model=self.embedding_model
             )
-            return response['data'][0]['embedding']
+            return response.data[0].embedding
             
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
@@ -404,6 +434,8 @@ class FeedbackIndexer:
             await self.search_client.close()
         if self.blob_service_client:
             await self.blob_service_client.close()
+        if self.openai_client:
+            await self.openai_client.close()
 
 
 # Singleton instance

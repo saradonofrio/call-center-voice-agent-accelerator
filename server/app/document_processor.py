@@ -32,8 +32,9 @@ from azure.search.documents.indexes.models import (
 )
 from azure.search.documents.indexes import SearchIndexerClient
 from azure.core.credentials import AzureKeyCredential
-from azure.identity import DefaultAzureCredential
+from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
 from openai import AzureOpenAI, OpenAI
+import asyncio
 
 try:
     from pypdf import PdfReader
@@ -73,8 +74,12 @@ class DocumentProcessor:
         # Azure OpenAI configuration for embeddings
         self.azure_openai_endpoint = config.get("azure_openai_endpoint")
         self.azure_openai_key = config.get("azure_openai_key")
+        self.azure_user_assigned_identity_client_id = config.get("azure_user_assigned_identity_client_id")
         self.azure_openai_embedding_deployment = config.get("azure_openai_embedding_deployment", "text-embedding-ada-002")
         self.embedding_dimensions = config.get("embedding_dimensions", 1536)  # 1536 for ada-002, 3072 for ada-003
+        
+        # Determine if using Managed Identity or API key
+        self.use_managed_identity = (self.azure_openai_endpoint and self.azure_user_assigned_identity_client_id and not self.azure_openai_key)
         
         # Document chunking settings
         self.chunk_size = config.get("chunk_size", 1000)  # characters per chunk
@@ -134,20 +139,38 @@ class DocumentProcessor:
             self.search_client = None
     
     def _init_openai_client(self):
-        """Initialize Azure OpenAI client for embeddings."""
-        if self.azure_openai_endpoint and self.azure_openai_key:
-            try:
+        """Initialize Azure OpenAI client for embeddings with Managed Identity or API key."""
+        if not self.azure_openai_endpoint:
+            logger.warning("Azure OpenAI endpoint not configured - vector search will be disabled")
+            self.openai_client = None
+            return
+            
+        try:
+            if self.use_managed_identity:
+                # Use Managed Identity authentication
+                credential = ManagedIdentityCredential(client_id=self.azure_user_assigned_identity_client_id)
+                # Get token synchronously for sync OpenAI client
+                token = credential.get_token("https://cognitiveservices.azure.com/.default")
+                
+                self.openai_client = AzureOpenAI(
+                    azure_endpoint=self.azure_openai_endpoint,
+                    azure_ad_token=token.token,
+                    api_version="2024-02-01"
+                )
+                logger.info("Azure OpenAI client initialized for embeddings with Managed Identity")
+            elif self.azure_openai_key:
+                # Use API key authentication
                 self.openai_client = AzureOpenAI(
                     azure_endpoint=self.azure_openai_endpoint,
                     api_key=self.azure_openai_key,
                     api_version="2024-02-01"
                 )
-                logger.info("Azure OpenAI client initialized for embeddings")
-            except Exception as e:
-                logger.error(f"Failed to initialize Azure OpenAI client: {e}")
+                logger.info("Azure OpenAI client initialized for embeddings with API key")
+            else:
+                logger.warning("Azure OpenAI authentication not configured - vector search will be disabled")
                 self.openai_client = None
-        else:
-            logger.warning("Azure OpenAI not configured - vector search will be disabled")
+        except Exception as e:
+            logger.error(f"Failed to initialize Azure OpenAI client: {e}")
             self.openai_client = None
 
     def _generate_embeddings(self, text: str) -> Optional[List[float]]:
