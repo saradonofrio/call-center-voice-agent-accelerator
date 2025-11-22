@@ -3,6 +3,7 @@ let currentPage = 1;
 let totalPages = 1;
 let currentConversationId = null;
 let currentTurnNumber = null;
+let conversationEvaluations = {}; // Cache for AI evaluations
 
 // Switch between tabs
 function switchTab(tabName) {
@@ -25,6 +26,7 @@ async function loadConversations() {
   const channel = document.getElementById('channel-filter').value;
   const startDate = document.getElementById('start-date').value;
   const endDate = document.getElementById('end-date').value;
+  const needsReview = document.getElementById('needs-review-filter')?.checked || false;
   
   const params = new URLSearchParams({
     page: currentPage,
@@ -38,8 +40,21 @@ async function loadConversations() {
     const response = await fetch(`/admin/api/conversations?${params}`);
     const data = await response.json();
     
-    totalPages = data.total_pages;
-    displayConversations(data.conversations);
+    // Load AI evaluations for each conversation
+    const conversations = data.conversations;
+    await Promise.all(conversations.map(conv => loadEvaluation(conv.id)));
+    
+    // Filter by needs_review if checkbox is checked
+    let filteredConversations = conversations;
+    if (needsReview) {
+      filteredConversations = conversations.filter(conv => {
+        const eval = conversationEvaluations[conv.id];
+        return eval && eval.needs_review;
+      });
+    }
+    
+    totalPages = Math.ceil(filteredConversations.length / 20);
+    displayConversations(filteredConversations);
     updatePagination();
   } catch (error) {
     console.error('Error loading conversations:', error);
@@ -56,20 +71,27 @@ function displayConversations(conversations) {
     return;
   }
   
-  container.innerHTML = conversations.map(conv => `
+  container.innerHTML = conversations.map(conv => {
+    const evaluation = conversationEvaluations[conv.id];
+    const priorityBadge = evaluation ? getPriorityBadge(evaluation.priority, evaluation.overall_score) : '';
+    
+    return `
     <div class="conversation-card" onclick="viewConversation('${conv.id}')">
       <div class="conv-header">
         <span class="conv-id">${conv.id}</span>
         <span class="conv-channel ${conv.channel}">${conv.channel}</span>
         ${conv.pii_detected ? '<span class="pii-badge">🔒 PII</span>' : ''}
+        ${priorityBadge}
       </div>
       <div class="conv-meta">
         <span>📅 ${new Date(conv.timestamp).toLocaleString('it-IT')}</span>
         <span>💬 ${conv.total_turns} turns</span>
         <span>⏱️ ${conv.duration_seconds}s</span>
+        ${evaluation ? `<span>🤖 AI Score: ${evaluation.overall_score}/10</span>` : ''}
       </div>
     </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 // View conversation detail
@@ -77,6 +99,9 @@ async function viewConversation(conversationId) {
   try {
     const response = await fetch(`/admin/api/conversations/${conversationId}`);
     const conv = await response.json();
+    
+    // Get AI evaluation for this conversation
+    const evaluation = conversationEvaluations[conversationId];
     
     const modal = document.getElementById('conversation-modal');
     const detailDiv = document.getElementById('conversation-detail');
@@ -89,17 +114,56 @@ async function viewConversation(conversationId) {
         <p><strong>Turns:</strong> ${conv.turns.length}</p>
         ${conv.pii_detected_types && conv.pii_detected_types.length > 0 ? 
           `<p><strong>PII Detected:</strong> ${conv.pii_detected_types.join(', ')}</p>` : ''}
+        ${evaluation ? `
+          <div class="ai-evaluation-summary">
+            <p><strong>🤖 AI Evaluation:</strong></p>
+            <p>Overall Score: <strong>${evaluation.overall_score}/10</strong></p>
+            <p>Priority: ${getPriorityBadge(evaluation.priority, evaluation.overall_score)}</p>
+            <p>Needs Review: ${evaluation.needs_review ? '✅ Yes' : '❌ No'}</p>
+            ${evaluation.critical_turns && evaluation.critical_turns.length > 0 ? 
+              `<p>Critical Turns: ${evaluation.critical_turns.join(', ')}</p>` : ''}
+          </div>
+        ` : `
+          <button onclick="evaluateSingleConversation('${conv.id}')" class="eval-btn">
+            🤖 Evaluate with AI
+          </button>
+        `}
       </div>
       
       <div class="turns">
-        ${conv.turns.map(turn => `
-          <div class="turn">
+        ${conv.turns.map(turn => {
+          const turnEval = evaluation?.turn_evaluations?.find(e => e.turn_number === turn.turn_number);
+          const turnEvalData = turnEval?.evaluation;
+          
+          return `
+          <div class="turn ${turnEvalData?.needs_review ? 'needs-review' : ''}">
             <div class="turn-header">
               <span>Turn ${turn.turn_number}</span>
+              ${turnEvalData ? getPriorityBadge(turnEvalData.priority, turnEvalData.overall_score) : ''}
               <button onclick="openFeedbackModal('${conv.id}', ${turn.turn_number})" class="feedback-btn">
                 💬 Feedback
               </button>
             </div>
+            ${turnEvalData ? `
+              <div class="ai-turn-evaluation">
+                <p><strong>🤖 AI Analysis:</strong> Score ${turnEvalData.overall_score}/10</p>
+                ${turnEvalData.evaluation_summary ? `<p><em>${turnEvalData.evaluation_summary}</em></p>` : ''}
+                ${turnEvalData.issues && turnEvalData.issues.length > 0 ? `
+                  <p><strong>Issues:</strong> ${turnEvalData.issues.join(', ')}</p>
+                ` : ''}
+                ${turnEvalData.strengths && turnEvalData.strengths.length > 0 ? `
+                  <p><strong>Strengths:</strong> ${turnEvalData.strengths.join(', ')}</p>
+                ` : ''}
+                <details>
+                  <summary>Category Scores</summary>
+                  <ul>
+                    ${Object.entries(turnEvalData.categories || {}).map(([cat, score]) => 
+                      `<li>${cat}: ${score}/10</li>`
+                    ).join('')}
+                  </ul>
+                </details>
+              </div>
+            ` : ''}
             <div class="message user-message">
               <strong>User:</strong> ${turn.user_message}
             </div>
@@ -112,7 +176,7 @@ async function viewConversation(conversationId) {
               </div>
             ` : ''}
           </div>
-        `).join('')}
+        `}).join('')}
       </div>
     `;
     
@@ -120,6 +184,22 @@ async function viewConversation(conversationId) {
   } catch (error) {
     console.error('Error loading conversation:', error);
     alert('Error loading conversation details');
+  }
+}
+
+// Evaluate a single conversation and reload view
+async function evaluateSingleConversation(conversationId) {
+  const evaluation = await evaluateConversation(conversationId);
+  if (evaluation) {
+    // Check if there was an error in the evaluation
+    if (evaluation.error) {
+      alert(`⚠️ Evaluation completed with issues:\n\n${evaluation.error}\n\nScore: ${evaluation.overall_score}/10`);
+    } else {
+      alert('✅ Conversation evaluated successfully!');
+    }
+    viewConversation(conversationId); // Reload the view
+  } else {
+    alert('❌ Error: Unable to evaluate conversation. Check server logs for details.');
   }
 }
 
@@ -270,6 +350,89 @@ function updatePagination() {
   document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages}`;
   document.getElementById('prev-page').disabled = currentPage === 1;
   document.getElementById('next-page').disabled = currentPage === totalPages;
+}
+
+// Load AI evaluation for a conversation
+async function loadEvaluation(conversationId) {
+  try {
+    const response = await fetch(`/admin/api/evaluations/${conversationId}`);
+    if (response.ok) {
+      const evaluation = await response.json();
+      conversationEvaluations[conversationId] = evaluation;
+    }
+  } catch (error) {
+    // Evaluation not found or error - silently continue
+  }
+}
+
+// Evaluate a single conversation
+async function evaluateConversation(conversationId) {
+  try {
+    const response = await fetch(`/admin/api/evaluate/${conversationId}`, {
+      method: 'POST'
+    });
+    
+    if (response.ok) {
+      const evaluation = await response.json();
+      conversationEvaluations[conversationId] = evaluation;
+      return evaluation;
+    } else {
+      // Try to get error message from response
+      const errorData = await response.json().catch(() => ({}));
+      console.error(`Error evaluating conversation ${conversationId}:`, errorData);
+      console.error(`Status: ${response.status} ${response.statusText}`);
+      
+      // Show detailed error to user
+      if (errorData.error) {
+        alert(`⚠️ Evaluation Error:\n\n${errorData.error}`);
+      }
+    }
+  } catch (error) {
+    console.error(`Error evaluating conversation ${conversationId}:`, error);
+  }
+  return null;
+}
+
+// Evaluate all visible conversations
+async function evaluateAllConversations() {
+  if (!confirm('Evaluate all conversations with AI? This may take a few moments.')) {
+    return;
+  }
+  
+  const container = document.getElementById('conversations-list');
+  const cards = container.querySelectorAll('.conversation-card');
+  
+  let evaluated = 0;
+  for (const card of cards) {
+    const convId = card.querySelector('.conv-id').textContent;
+    
+    // Skip if already evaluated recently
+    const existing = conversationEvaluations[convId];
+    if (existing && existing.timestamp) {
+      const evalTime = new Date(existing.timestamp);
+      const hoursSince = (Date.now() - evalTime.getTime()) / (1000 * 60 * 60);
+      if (hoursSince < 24) {
+        continue; // Skip if evaluated in last 24 hours
+      }
+    }
+    
+    await evaluateConversation(convId);
+    evaluated++;
+  }
+  
+  alert(`Evaluated ${evaluated} conversations!`);
+  loadConversations(); // Reload to show updated badges
+}
+
+// Get priority badge HTML
+function getPriorityBadge(priority, score) {
+  const badges = {
+    'critical': `<span class="priority-badge critical">🚨 Critical (${score}/10)</span>`,
+    'high': `<span class="priority-badge high">⚠️ High (${score}/10)</span>`,
+    'medium': `<span class="priority-badge medium">ℹ️ Medium (${score}/10)</span>`,
+    'low': `<span class="priority-badge low">✅ Good (${score}/10)</span>`
+  };
+  return badges[priority] || '';
 }
 
 // Initial load

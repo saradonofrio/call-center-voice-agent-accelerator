@@ -467,6 +467,114 @@ textarea {
   font-size: 1.1rem;
 }
 
+/* AI Evaluation Badges */
+.priority-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-block;
+  margin-left: 8px;
+}
+
+.priority-badge.critical {
+  background: #ff4444;
+  color: white;
+}
+
+.priority-badge.high {
+  background: #ff9800;
+  color: white;
+}
+
+.priority-badge.medium {
+  background: #2196f3;
+  color: white;
+}
+
+.priority-badge.low {
+  background: #4caf50;
+  color: white;
+}
+
+/* AI Evaluation Summary */
+.ai-evaluation-summary {
+  background: #f0f8ff;
+  border-left: 4px solid #2196f3;
+  padding: 15px;
+  margin-top: 15px;
+  border-radius: 4px;
+}
+
+.ai-evaluation-summary p {
+  margin: 5px 0;
+}
+
+/* AI Turn Evaluation */
+.ai-turn-evaluation {
+  background: #fff9e6;
+  border: 1px solid #ffd54f;
+  padding: 12px;
+  margin: 10px 0;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.ai-turn-evaluation p {
+  margin: 5px 0;
+}
+
+.ai-turn-evaluation strong {
+  color: #333;
+}
+
+.ai-turn-evaluation em {
+  color: #666;
+}
+
+.ai-turn-evaluation details {
+  margin-top: 10px;
+  cursor: pointer;
+}
+
+.ai-turn-evaluation summary {
+  font-weight: 600;
+  color: #007bff;
+  user-select: none;
+}
+
+.ai-turn-evaluation ul {
+  margin-top: 5px;
+  margin-left: 20px;
+}
+
+.ai-turn-evaluation li {
+  margin: 3px 0;
+}
+
+/* Turn needs review highlight */
+.turn.needs-review {
+  border-left: 4px solid #ff9800;
+  background: #fff3e0;
+}
+
+/* Evaluate button */
+.eval-btn {
+  padding: 10px 20px;
+  background: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  margin-top: 10px;
+  transition: background 0.3s;
+}
+
+.eval-btn:hover {
+  background: #45a049;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .filters {

@@ -31,7 +31,13 @@
         <input type="date" id="start-date" onchange="loadConversations()" />
         <input type="date" id="end-date" onchange="loadConversations()" />
         
+        <label style="margin-left: 10px;">
+          <input type="checkbox" id="needs-review-filter" onchange="loadConversations()" />
+          🤖 Only AI-flagged for review
+        </label>
+        
         <button onclick="loadConversations()">🔄 Refresh</button>
+        <button onclick="evaluateAllConversations()" style="background: #4CAF50;">🤖 Auto-Evaluate All</button>
       </div>
 
       <div id="conversations-list" class="conversations-list">
