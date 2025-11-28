@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Dashboard - Feedback Bot</title>
-  <link rel="stylesheet" href="/static/admin/admin.css?v=2.5">
+  <link rel="stylesheet" href="/static/admin/admin.css?v=2.6">
 </head>
 <body>
   <div class="container">
@@ -103,42 +103,69 @@
   <!-- Inline Feedback Form Template (hidden, will be cloned) -->
   <template id="feedback-form-template">
     <div class="inline-feedback-form">
-      <h4>💬 Fornisci Feedback</h4>
+      <h4>💬 Valuta questa risposta</h4>
       
-      <label>Valutazione:</label>
-      <div class="rating">
-        <button type="button" onclick="setInlineRating(this, 1)">⭐</button>
-        <button type="button" onclick="setInlineRating(this, 2)">⭐⭐</button>
-        <button type="button" onclick="setInlineRating(this, 3)">⭐⭐⭐</button>
-        <button type="button" onclick="setInlineRating(this, 4)">⭐⭐⭐⭐</button>
-        <button type="button" onclick="setInlineRating(this, 5)">⭐⭐⭐⭐⭐</button>
-      </div>
-      <input type="hidden" class="selected-rating" value="3">
-      
-      <label>Tag:</label>
-      <div class="tags">
-        <label><input type="checkbox" value="helpful"> Utile</label>
-        <label><input type="checkbox" value="accurate"> Accurata</label>
-        <label><input type="checkbox" value="wrong_info"> Info Errata</label>
-        <label><input type="checkbox" value="tone_issue"> Problema di Tono</label>
-        <label><input type="checkbox" value="context_lost"> Contesto Perso</label>
-        <label><input type="checkbox" value="excellent"> Eccellente</label>
+      <div class="feedback-section">
+        <label>Valutazione:</label>
+        <div class="rating">
+          <button type="button" onclick="setInlineRating(this, 1)">⭐</button>
+          <button type="button" onclick="setInlineRating(this, 2)">⭐⭐</button>
+          <button type="button" onclick="setInlineRating(this, 3)">⭐⭐⭐</button>
+          <button type="button" onclick="setInlineRating(this, 4)">⭐⭐⭐⭐</button>
+          <button type="button" onclick="setInlineRating(this, 5)">⭐⭐⭐⭐⭐</button>
+        </div>
+        <input type="hidden" class="selected-rating" value="3">
       </div>
       
-      <label>Commento Admin:</label>
-      <textarea class="admin-comment" rows="3" placeholder="Il tuo feedback..."></textarea>
+      <div class="feedback-section">
+        <label>Tag:</label>
+        <div class="tags">
+          <label><input type="checkbox" value="helpful"> Utile</label>
+          <label><input type="checkbox" value="accurate"> Accurata</label>
+          <label><input type="checkbox" value="wrong_info"> Info Errata</label>
+          <label><input type="checkbox" value="tone_issue"> Problema di Tono</label>
+          <label><input type="checkbox" value="context_lost"> Contesto Perso</label>
+          <label><input type="checkbox" value="excellent"> Eccellente</label>
+        </div>
+      </div>
       
-      <label>Risposta Corretta (opzionale):</label>
-      <textarea class="corrected-response" rows="4" placeholder="Fornisci una risposta migliore..."></textarea>
+      <div class="feedback-section">
+        <label>Commento Admin:</label>
+        <textarea class="admin-comment" rows="3" placeholder="Descrivi il problema o aggiungi note..."></textarea>
+      </div>
       
-      <div class="feedback-actions">
-        <button onclick="submitInlineFeedback(this)" class="submit-btn">💾 Invia Feedback</button>
-        <button onclick="approveInlineResponse(this)" class="approve-btn">✅ Approva per Apprendimento</button>
+      <div class="feedback-section correction-section">
+        <label>
+          💡 Risposta Corretta 
+          <span class="help-text">(Compila questo campo se la risposta del bot è sbagliata)</span>
+        </label>
+        <textarea class="corrected-response" rows="4" placeholder="Scrivi come il bot AVREBBE DOVUTO rispondere..."></textarea>
+      </div>
+      
+      <div class="feedback-actions-container">
+        <div class="action-group action-for-wrong">
+          <div class="action-label">❌ Se la risposta è SBAGLIATA:</div>
+          <button onclick="submitInlineFeedback(this)" class="submit-btn">
+            💾 Invia Feedback Correttivo
+          </button>
+          <div class="action-help">Compila "Risposta Corretta" e invia per migliorare il bot</div>
+        </div>
+        
+        <div class="action-divider">OPPURE</div>
+        
+        <div class="action-group action-for-good">
+          <div class="action-label">✅ Se la risposta è OTTIMA:</div>
+          <button onclick="approveInlineResponse(this)" class="approve-btn">
+            ⭐ Approva come Esempio
+          </button>
+          <div class="action-help">Salva come modello di qualità per il futuro</div>
+        </div>
+        
         <button onclick="closeInlineFeedback(this)" class="cancel-btn">✖️ Annulla</button>
       </div>
     </div>
   </template>
 
-  <script src="/static/admin/admin.js?v=2.5"></script>
+  <script src="/static/admin/admin.js?v=2.6"></script>
 </body>
 </html>
