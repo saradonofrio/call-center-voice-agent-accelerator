@@ -307,41 +307,43 @@ class AIEvaluator:
     
     def _get_system_prompt(self) -> str:
         """Get system prompt for evaluation."""
-        return """You are an expert AI assistant evaluator for a call center voice agent system.
-Your task is to evaluate bot responses for quality, accuracy, and appropriateness.
+        return """Sei un esperto valutatore AI di risposte per un sistema di assistente vocale per call center.
+Il tuo compito è valutare le risposte del bot per qualità, accuratezza e appropriatezza.
 
-Evaluate responses on these dimensions (0-10 scale):
-- Accuracy: Is the information correct and factual?
-- Tone: Is the tone professional, empathetic, and appropriate?
-- Context: Does the response show understanding of context and conversation flow?
-- Completeness: Does the response fully address the user's question?
-- Clarity: Is the response clear, concise, and easy to understand?
+Valuta le risposte secondo queste dimensioni (scala 0-10):
+- Accuratezza: Le informazioni sono corrette e fattuali?
+- Tono: Il tono è professionale, empatico e appropriato?
+- Contesto: La risposta mostra comprensione del contesto e del flusso della conversazione?
+- Completezza: La risposta affronta completamente la domanda dell'utente?
+- Chiarezza: La risposta è chiara, concisa e facile da capire?
 
-Identify:
-- Issues: Problems, errors, or areas of concern
-- Strengths: What the response does well
+Identifica:
+- Problemi: Errori o aree di preoccupazione
+- Punti di forza: Cosa fa bene la risposta
 
-Return your evaluation as JSON in this exact format:
+Restituisci la tua valutazione come JSON in questo formato esatto:
 {
-  "overall_score": <number 0-10>,
+  "overall_score": <numero 0-10>,
   "categories": {
-    "accuracy": <number 0-10>,
-    "tone": <number 0-10>,
-    "context": <number 0-10>,
-    "completeness": <number 0-10>,
-    "clarity": <number 0-10>
+    "accuracy": <numero 0-10>,
+    "tone": <numero 0-10>,
+    "context": <numero 0-10>,
+    "completeness": <numero 0-10>,
+    "clarity": <numero 0-10>
   },
-  "issues": ["issue1", "issue2"],
-  "strengths": ["strength1", "strength2"],
-  "evaluation_summary": "Brief 1-2 sentence summary"
+  "issues": ["problema1", "problema2"],
+  "strengths": ["punto_forza1", "punto_forza2"],
+  "evaluation_summary": "Breve riepilogo in 1-2 frasi"
 }
 
-Be critical but fair. Flag responses with:
-- Factual errors or misinformation
-- Inappropriate tone or lack of empathy
-- Missing context or irrelevant information
-- Incomplete answers
-- Unclear or confusing language"""
+Sii critico ma giusto. Segnala risposte con:
+- Errori fattuali o disinformazione
+- Tono inappropriato o mancanza di empatia
+- Contesto mancante o informazioni irrilevanti
+- Risposte incomplete
+- Linguaggio poco chiaro o confuso
+
+IMPORTANTE: Scrivi TUTTO in italiano, inclusi problemi, punti di forza e riepilogo della valutazione."""
 
     def _build_evaluation_prompt(
         self,
@@ -350,21 +352,21 @@ Be critical but fair. Flag responses with:
         context: Optional[str] = None
     ) -> str:
         """Build evaluation prompt."""
-        prompt = f"""Evaluate this bot response:
+        prompt = f"""Valuta questa risposta del bot:
 
-USER MESSAGE:
+MESSAGGIO UTENTE:
 {user_message}
 
-BOT RESPONSE:
+RISPOSTA BOT:
 {bot_response}"""
         
         if context:
             prompt += f"""
 
-CONVERSATION CONTEXT:
+CONTESTO CONVERSAZIONE:
 {context}"""
         
-        prompt += "\n\nProvide your evaluation in JSON format."
+        prompt += "\n\nFornisci la tua valutazione in formato JSON. Ricorda: TUTTO deve essere in italiano."
         
         return prompt
     

@@ -30,7 +30,7 @@ async function loadConversations() {
   
   const params = new URLSearchParams({
     page: currentPage,
-    page_size: 20
+    page_size: 50  // Increased to show more when filtering
   });
   if (channel) params.append('channel', channel);
   if (startDate) params.append('start_date', startDate);
@@ -43,6 +43,23 @@ async function loadConversations() {
     // Load AI evaluations for each conversation
     const conversations = data.conversations;
     await Promise.all(conversations.map(conv => loadEvaluation(conv.id)));
+    
+    // Calculate summary statistics
+    let criticalCount = 0;
+    let needsReviewCount = 0;
+    let approvedCount = 0;
+    
+    conversations.forEach(conv => {
+      const eval = conversationEvaluations[conv.id];
+      if (eval) {
+        if (eval.priority === 'critical') criticalCount++;
+        if (eval.needs_review) needsReviewCount++;
+        if (!eval.needs_review && eval.overall_score >= 7) approvedCount++;
+      }
+    });
+    
+    // Update summary banner
+    updateSummaryBanner(criticalCount, needsReviewCount, approvedCount, conversations.length);
     
     // Filter by needs_review if checkbox is checked
     let filteredConversations = conversations;
@@ -60,6 +77,40 @@ async function loadConversations() {
     console.error('Error loading conversations:', error);
     alert('Error loading conversations');
   }
+}
+
+// Update summary banner
+function updateSummaryBanner(critical, needsReview, approved, total) {
+  const banner = document.getElementById('summary-banner');
+  banner.innerHTML = `
+    <div class="summary-stats">
+      <div class="stat-card critical">
+        <div class="stat-number">${critical}</div>
+        <div class="stat-label">🔴 Critical Issues</div>
+      </div>
+      <div class="stat-card warning">
+        <div class="stat-number">${needsReview}</div>
+        <div class="stat-label">⚠️ Needs Review</div>
+      </div>
+      <div class="stat-card success">
+        <div class="stat-number">${approved}</div>
+        <div class="stat-label">✅ Good Responses</div>
+      </div>
+      <div class="stat-card info">
+        <div class="stat-number">${total}</div>
+        <div class="stat-label">📊 Total Conversations</div>
+      </div>
+    </div>
+    ${needsReview > 0 ? `
+      <div class="attention-message">
+        👁️ <strong>${needsReview} conversation${needsReview > 1 ? 's' : ''} need${needsReview === 1 ? 's' : ''} your attention</strong> (out of ${total} total)
+      </div>
+    ` : `
+      <div class="attention-message success">
+        🎉 All conversations look good! No immediate review needed.
+      </div>
+    `}
+  `;
 }
 
 // Display conversations
@@ -136,11 +187,11 @@ async function viewConversation(conversationId) {
           const turnEvalData = turnEval?.evaluation;
           
           return `
-          <div class="turn ${turnEvalData?.needs_review ? 'needs-review' : ''}">
+          <div class="turn ${turnEvalData?.needs_review ? 'needs-review' : ''}" id="turn-${conv.id}-${turn.turn_number}">
             <div class="turn-header">
               <span>Turn ${turn.turn_number}</span>
               ${turnEvalData ? getPriorityBadge(turnEvalData.priority, turnEvalData.overall_score) : ''}
-              <button onclick="openFeedbackModal('${conv.id}', ${turn.turn_number})" class="feedback-btn">
+              <button onclick="toggleInlineFeedback('${conv.id}', ${turn.turn_number})" class="feedback-btn">
                 💬 Feedback
               </button>
             </div>
@@ -208,51 +259,168 @@ function closeModal() {
   document.getElementById('conversation-modal').style.display = 'none';
 }
 
-// Open feedback modal
-function openFeedbackModal(conversationId, turnNumber) {
-  currentConversationId = conversationId;
-  currentTurnNumber = turnNumber;
+// Toggle inline feedback form with AI pre-fill
+async function toggleInlineFeedback(conversationId, turnNumber) {
+  const turnDiv = document.getElementById(`turn-${conversationId}-${turnNumber}`);
+  const existingForm = turnDiv.querySelector('.inline-feedback-form');
   
-  // Reset form
-  document.getElementById('selected-rating').value = '3';
-  document.getElementById('admin-comment').value = '';
-  document.getElementById('corrected-response').value = '';
-  document.querySelectorAll('.tags input').forEach(cb => cb.checked = false);
+  // If form already exists, remove it
+  if (existingForm) {
+    existingForm.remove();
+    return;
+  }
   
-  document.getElementById('feedback-modal').style.display = 'block';
+  // Close any other open feedback forms
+  document.querySelectorAll('.inline-feedback-form').forEach(form => form.remove());
+  
+  // Clone the template
+  const template = document.getElementById('feedback-form-template');
+  const formClone = template.content.cloneNode(true);
+  const formDiv = formClone.querySelector('.inline-feedback-form');
+  
+  // Store conversation and turn data
+  formDiv.dataset.conversationId = conversationId;
+  formDiv.dataset.turnNumber = turnNumber;
+  
+  // Append to turn
+  turnDiv.appendChild(formClone);
+  
+  // Pre-fill with AI suggestions
+  await prefillAISuggestions(formDiv, conversationId, turnNumber);
+  
+  // Scroll into view
+  formDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-// Close feedback modal
-function closeFeedbackModal() {
-  document.getElementById('feedback-modal').style.display = 'none';
+// Pre-fill feedback form with AI suggestions
+async function prefillAISuggestions(formDiv, conversationId, turnNumber) {
+  const loadingMsg = document.createElement('div');
+  loadingMsg.className = 'ai-loading';
+  loadingMsg.innerHTML = '🤖 AI sta preparando suggerimenti...';
+  formDiv.insertBefore(loadingMsg, formDiv.firstChild);
+  
+  try {
+    // Get the conversation evaluation
+    const evaluation = conversationEvaluations[conversationId];
+    const turnEval = evaluation?.turn_evaluations?.find(e => e.turn_number === turnNumber);
+    const turnEvalData = turnEval?.evaluation;
+    
+    if (turnEvalData) {
+      // Set rating based on AI score (convert 0-10 to 1-5)
+      const suggestedRating = Math.max(1, Math.min(5, Math.round(turnEvalData.overall_score / 2)));
+      setInlineRating(formDiv.querySelector('.rating button:nth-child(' + suggestedRating + ')'), suggestedRating);
+      
+      // Pre-check relevant tags based on AI analysis
+      const tagsToCheck = [];
+      
+      if (turnEvalData.overall_score >= 8) {
+        tagsToCheck.push('excellent', 'helpful', 'accurate');
+      } else if (turnEvalData.overall_score >= 6) {
+        tagsToCheck.push('helpful', 'accurate');
+      }
+      
+      if (turnEvalData.issues && turnEvalData.issues.length > 0) {
+        if (turnEvalData.issues.some(i => i.toLowerCase().includes('context'))) {
+          tagsToCheck.push('context_lost');
+        }
+        if (turnEvalData.issues.some(i => i.toLowerCase().includes('incorrect') || i.toLowerCase().includes('wrong'))) {
+          tagsToCheck.push('wrong_info');
+        }
+        if (turnEvalData.issues.some(i => i.toLowerCase().includes('tone') || i.toLowerCase().includes('tono'))) {
+          tagsToCheck.push('tone_issue');
+        }
+      }
+      
+      // Check the tags
+      formDiv.querySelectorAll('.tags input[type="checkbox"]').forEach(cb => {
+        if (tagsToCheck.includes(cb.value)) {
+          cb.checked = true;
+        }
+      });
+      
+      // Pre-fill admin comment with AI analysis in Italian
+      let adminComment = '🤖 Suggerimento AI:\n\n';
+      
+      if (turnEvalData.evaluation_summary) {
+        adminComment += `${turnEvalData.evaluation_summary}\n\n`;
+      }
+      
+      if (turnEvalData.issues && turnEvalData.issues.length > 0) {
+        adminComment += `Problemi identificati:\n${turnEvalData.issues.map(i => '• ' + i).join('\n')}\n\n`;
+      }
+      
+      if (turnEvalData.strengths && turnEvalData.strengths.length > 0) {
+        adminComment += `Punti di forza:\n${turnEvalData.strengths.map(s => '• ' + s).join('\n')}\n\n`;
+      }
+      
+      adminComment += '---\nModifica o aggiungi le tue osservazioni sopra.';
+      
+      formDiv.querySelector('.admin-comment').value = adminComment;
+      
+      // If there are issues and score is low, suggest a corrected response
+      if (turnEvalData.overall_score < 6 && turnEvalData.suggested_improvement) {
+        formDiv.querySelector('.corrected-response').value = turnEvalData.suggested_improvement;
+      }
+      
+      loadingMsg.innerHTML = '✅ Suggerimenti AI caricati! Puoi modificarli prima di inviare.';
+      loadingMsg.style.background = '#d4edda';
+      loadingMsg.style.color = '#155724';
+      setTimeout(() => loadingMsg.remove(), 3000);
+    } else {
+      loadingMsg.innerHTML = 'ℹ️ Nessuna valutazione AI disponibile. Compila manualmente.';
+      loadingMsg.style.background = '#fff3cd';
+      loadingMsg.style.color = '#856404';
+      setTimeout(() => loadingMsg.remove(), 3000);
+    }
+  } catch (error) {
+    console.error('Error pre-filling AI suggestions:', error);
+    loadingMsg.innerHTML = '⚠️ Errore nel caricamento dei suggerimenti AI.';
+    loadingMsg.style.background = '#f8d7da';
+    loadingMsg.style.color = '#721c24';
+    setTimeout(() => loadingMsg.remove(), 3000);
+  }
 }
 
-// Set rating
-function setRating(rating) {
-  document.getElementById('selected-rating').value = rating;
-  document.querySelectorAll('.rating button').forEach((btn, idx) => {
+// Close inline feedback
+function closeInlineFeedback(button) {
+  const form = button.closest('.inline-feedback-form');
+  form.remove();
+}
+
+// Set rating for inline form
+function setInlineRating(button, rating) {
+  const form = button.closest('.inline-feedback-form');
+  form.querySelector('.selected-rating').value = rating;
+  form.querySelectorAll('.rating button').forEach((btn, idx) => {
     btn.style.opacity = idx < rating ? '1' : '0.3';
   });
 }
 
-// Submit feedback
-async function submitFeedback() {
-  const rating = parseInt(document.getElementById('selected-rating').value);
-  const comment = document.getElementById('admin-comment').value;
-  const corrected = document.getElementById('corrected-response').value;
+// Submit inline feedback
+async function submitInlineFeedback(button) {
+  const form = button.closest('.inline-feedback-form');
+  const conversationId = form.dataset.conversationId;
+  const turnNumber = parseInt(form.dataset.turnNumber);
+  
+  const rating = parseInt(form.querySelector('.selected-rating').value);
+  const comment = form.querySelector('.admin-comment').value;
+  const corrected = form.querySelector('.corrected-response').value;
   
   const tags = [];
-  document.querySelectorAll('.tags input:checked').forEach(cb => {
+  form.querySelectorAll('.tags input:checked').forEach(cb => {
     tags.push(cb.value);
   });
   
   try {
-    const response = await fetch(`/admin/api/feedback/${currentConversationId}`, {
+    button.disabled = true;
+    button.textContent = '⏳ Submitting...';
+    
+    const response = await fetch(`/admin/api/feedback/${conversationId}`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        conversation_id: currentConversationId,
-        turn_number: currentTurnNumber,
+        conversation_id: conversationId,
+        turn_number: turnNumber,
         rating,
         tags,
         admin_comment: comment,
@@ -261,14 +429,50 @@ async function submitFeedback() {
     });
     
     if (response.ok) {
-      alert('Feedback submitted successfully!');
-      closeFeedbackModal();
+      alert('✅ Feedback submitted successfully!');
+      form.remove();
+      loadConversations(); // Refresh list
     } else {
-      alert('Error submitting feedback');
+      alert('❌ Error submitting feedback');
+      button.disabled = false;
+      button.textContent = '💾 Submit Feedback';
     }
   } catch (error) {
     console.error('Error submitting feedback:', error);
-    alert('Error submitting feedback');
+    alert('❌ Error submitting feedback');
+    button.disabled = false;
+    button.textContent = '💾 Submit Feedback';
+  }
+}
+
+// Approve inline response for learning
+async function approveInlineResponse(button) {
+  const form = button.closest('.inline-feedback-form');
+  const conversationId = form.dataset.conversationId;
+  const turnNumber = parseInt(form.dataset.turnNumber);
+  
+  try {
+    button.disabled = true;
+    button.textContent = '⏳ Approving...';
+    
+    const response = await fetch(`/admin/api/approve/${conversationId}/${turnNumber}`, {
+      method: 'POST'
+    });
+    
+    if (response.ok) {
+      alert('✅ Response approved for bot learning!');
+      form.remove();
+      loadConversations();
+    } else {
+      alert('❌ Error approving response');
+      button.disabled = false;
+      button.textContent = '✅ Approve for Learning';
+    }
+  } catch (error) {
+    console.error('Error approving response:', error);
+    alert('❌ Error approving response');
+    button.disabled = false;
+    button.textContent = '✅ Approve for Learning';
   }
 }
 

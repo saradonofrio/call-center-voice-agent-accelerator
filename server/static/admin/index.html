@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Dashboard - Feedback Bot</title>
-  <link rel="stylesheet" href="/static/admin/admin.css">
+  <link rel="stylesheet" href="/static/admin/admin.css?v=2.2">
 </head>
 <body>
   <div class="container">
@@ -21,23 +21,46 @@
 
     <!-- Conversations Tab -->
     <div id="conversations-tab" class="tab-content active">
-      <div class="filters">
-        <select id="channel-filter" onchange="loadConversations()">
-          <option value="">All Channels</option>
-          <option value="web">Web</option>
-          <option value="phone">Phone</option>
-        </select>
+      <div class="summary-banner" id="summary-banner">
+        <!-- Summary will be loaded here -->
+      </div>
+      
+      <div class="filters-modern">
+        <div class="filters-row">
+          <div class="filter-item">
+            <label class="filter-label">📱 Channel</label>
+            <select id="channel-filter" class="filter-select" onchange="loadConversations()">
+              <option value="">All Channels</option>
+              <option value="web">💻 Web</option>
+              <option value="phone">📞 Phone</option>
+            </select>
+          </div>
+          
+          <div class="filter-item">
+            <label class="filter-label">📅 Start Date</label>
+            <input type="date" id="start-date" class="filter-input" onchange="loadConversations()" />
+          </div>
+          
+          <div class="filter-item">
+            <label class="filter-label">📅 End Date</label>
+            <input type="date" id="end-date" class="filter-input" onchange="loadConversations()" />
+          </div>
+        </div>
         
-        <input type="date" id="start-date" onchange="loadConversations()" />
-        <input type="date" id="end-date" onchange="loadConversations()" />
-        
-        <label style="margin-left: 10px;">
-          <input type="checkbox" id="needs-review-filter" onchange="loadConversations()" />
-          🤖 Only AI-flagged for review
-        </label>
-        
-        <button onclick="loadConversations()">🔄 Refresh</button>
-        <button onclick="evaluateAllConversations()" style="background: #4CAF50;">🤖 Auto-Evaluate All</button>
+        <div class="filters-row">
+          <div class="filter-toggle">
+            <label class="toggle-container">
+              <input type="checkbox" id="needs-review-filter" onchange="loadConversations()" checked />
+              <span class="toggle-slider"></span>
+              <span class="toggle-label">🤖 Show only AI-flagged conversations</span>
+            </label>
+          </div>
+          
+          <div class="filter-actions">
+            <button onclick="loadConversations()" class="btn-secondary">🔄 Refresh</button>
+            <button onclick="evaluateAllConversations()" class="btn-primary">🤖 Auto-Evaluate All</button>
+          </div>
+        </div>
       </div>
 
       <div id="conversations-list" class="conversations-list">
@@ -77,44 +100,45 @@
     </div>
   </div>
 
-  <!-- Feedback Modal -->
-  <div id="feedback-modal" class="modal">
-    <div class="modal-content">
-      <span class="close" onclick="closeFeedbackModal()">&times;</span>
-      <h2>Provide Feedback</h2>
-      <div id="feedback-form">
-        <label>Rating:</label>
-        <div class="rating">
-          <button onclick="setRating(1)">⭐</button>
-          <button onclick="setRating(2)">⭐⭐</button>
-          <button onclick="setRating(3)">⭐⭐⭐</button>
-          <button onclick="setRating(4)">⭐⭐⭐⭐</button>
-          <button onclick="setRating(5)">⭐⭐⭐⭐⭐</button>
-        </div>
-        <input type="hidden" id="selected-rating" value="3">
-        
-        <label>Tags:</label>
-        <div class="tags">
-          <label><input type="checkbox" value="helpful"> Helpful</label>
-          <label><input type="checkbox" value="accurate"> Accurate</label>
-          <label><input type="checkbox" value="wrong_info"> Wrong Info</label>
-          <label><input type="checkbox" value="tone_issue"> Tone Issue</label>
-          <label><input type="checkbox" value="context_lost"> Context Lost</label>
-          <label><input type="checkbox" value="excellent"> Excellent</label>
-        </div>
-        
-        <label>Admin Comment:</label>
-        <textarea id="admin-comment" rows="3" placeholder="Your feedback..."></textarea>
-        
-        <label>Corrected Response (optional):</label>
-        <textarea id="corrected-response" rows="4" placeholder="Provide a better response..."></textarea>
-        
-        <button onclick="submitFeedback()">Submit Feedback</button>
-        <button onclick="approveResponse()" class="approve-btn">✅ Approve for Learning</button>
+  <!-- Inline Feedback Form Template (hidden, will be cloned) -->
+  <template id="feedback-form-template">
+    <div class="inline-feedback-form">
+      <h4>💬 Provide Feedback</h4>
+      
+      <label>Rating:</label>
+      <div class="rating">
+        <button type="button" onclick="setInlineRating(this, 1)">⭐</button>
+        <button type="button" onclick="setInlineRating(this, 2)">⭐⭐</button>
+        <button type="button" onclick="setInlineRating(this, 3)">⭐⭐⭐</button>
+        <button type="button" onclick="setInlineRating(this, 4)">⭐⭐⭐⭐</button>
+        <button type="button" onclick="setInlineRating(this, 5)">⭐⭐⭐⭐⭐</button>
+      </div>
+      <input type="hidden" class="selected-rating" value="3">
+      
+      <label>Tags:</label>
+      <div class="tags">
+        <label><input type="checkbox" value="helpful"> Helpful</label>
+        <label><input type="checkbox" value="accurate"> Accurate</label>
+        <label><input type="checkbox" value="wrong_info"> Wrong Info</label>
+        <label><input type="checkbox" value="tone_issue"> Tone Issue</label>
+        <label><input type="checkbox" value="context_lost"> Context Lost</label>
+        <label><input type="checkbox" value="excellent"> Excellent</label>
+      </div>
+      
+      <label>Admin Comment:</label>
+      <textarea class="admin-comment" rows="3" placeholder="Your feedback..."></textarea>
+      
+      <label>Corrected Response (optional):</label>
+      <textarea class="corrected-response" rows="4" placeholder="Provide a better response..."></textarea>
+      
+      <div class="feedback-actions">
+        <button onclick="submitInlineFeedback(this)" class="submit-btn">💾 Submit Feedback</button>
+        <button onclick="approveInlineResponse(this)" class="approve-btn">✅ Approve for Learning</button>
+        <button onclick="closeInlineFeedback(this)" class="cancel-btn">✖️ Cancel</button>
       </div>
     </div>
-  </div>
+  </template>
 
-  <script src="/static/admin/admin.js"></script>
+  <script src="/static/admin/admin.js?v=2.2"></script>
 </body>
 </html>
