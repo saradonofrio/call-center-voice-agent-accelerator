@@ -4,19 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Dashboard - Feedback Bot</title>
-  <link rel="stylesheet" href="/static/admin/admin.css?v=2.2">
+  <link rel="stylesheet" href="/static/admin/admin.css?v=2.5">
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>🎯 Admin Dashboard - Bot Feedback System</h1>
-      <p>Review conversations, provide feedback, and improve bot responses</p>
+      <h1>🎯 Dashboard Admin - Sistema di Feedback Bot</h1>
+      <p>Rivedi le conversazioni, fornisci feedback e migliora le risposte del bot</p>
     </header>
 
     <nav class="tabs">
-      <button class="tab active" onclick="switchTab('conversations')">💬 Conversations</button>
-      <button class="tab" onclick="switchTab('analytics')">📊 Analytics</button>
-      <button class="tab" onclick="switchTab('approved')">⭐ Approved Responses</button>
+      <button class="tab active" onclick="switchTab('conversations')">💬 Conversazioni</button>
+      <button class="tab" onclick="switchTab('analytics')">📊 Statistiche</button>
+      <button class="tab" onclick="switchTab('approved')">⭐ Risposte Approvate</button>
     </nav>
 
     <!-- Conversations Tab -->
@@ -28,21 +28,21 @@
       <div class="filters-modern">
         <div class="filters-row">
           <div class="filter-item">
-            <label class="filter-label">📱 Channel</label>
+            <label class="filter-label">📱 Canale</label>
             <select id="channel-filter" class="filter-select" onchange="loadConversations()">
-              <option value="">All Channels</option>
+              <option value="">Tutti i Canali</option>
               <option value="web">💻 Web</option>
-              <option value="phone">📞 Phone</option>
+              <option value="phone">📞 Telefono</option>
             </select>
           </div>
           
           <div class="filter-item">
-            <label class="filter-label">📅 Start Date</label>
+            <label class="filter-label">📅 Data Inizio</label>
             <input type="date" id="start-date" class="filter-input" onchange="loadConversations()" />
           </div>
           
           <div class="filter-item">
-            <label class="filter-label">📅 End Date</label>
+            <label class="filter-label">📅 Data Fine</label>
             <input type="date" id="end-date" class="filter-input" onchange="loadConversations()" />
           </div>
         </div>
@@ -52,13 +52,13 @@
             <label class="toggle-container">
               <input type="checkbox" id="needs-review-filter" onchange="loadConversations()" checked />
               <span class="toggle-slider"></span>
-              <span class="toggle-label">🤖 Show only AI-flagged conversations</span>
+              <span class="toggle-label">🤖 Mostra solo conversazioni segnalate dall'AI</span>
             </label>
           </div>
           
           <div class="filter-actions">
-            <button onclick="loadConversations()" class="btn-secondary">🔄 Refresh</button>
-            <button onclick="evaluateAllConversations()" class="btn-primary">🤖 Auto-Evaluate All</button>
+            <button onclick="loadConversations()" class="btn-secondary">🔄 Aggiorna</button>
+            <button onclick="evaluateAllConversations()" class="btn-primary">🤖 Valuta Tutte</button>
           </div>
         </div>
       </div>
@@ -68,15 +68,15 @@
       </div>
 
       <div class="pagination">
-        <button id="prev-page" onclick="previousPage()">← Previous</button>
-        <span id="page-info">Page 1</span>
-        <button id="next-page" onclick="nextPage()">Next →</button>
+        <button id="prev-page" onclick="previousPage()">← Precedente</button>
+        <span id="page-info">Pagina 1</span>
+        <button id="next-page" onclick="nextPage()">Successiva →</button>
       </div>
     </div>
 
     <!-- Analytics Tab -->
     <div id="analytics-tab" class="tab-content">
-      <h2>📊 Dashboard Metrics</h2>
+      <h2>📊 Metriche Dashboard</h2>
       <div id="analytics-content" class="analytics-grid">
         <!-- Analytics will be loaded here -->
       </div>
@@ -84,7 +84,7 @@
 
     <!-- Approved Responses Tab -->
     <div id="approved-tab" class="tab-content">
-      <h2>⭐ Approved Responses for Learning</h2>
+      <h2>⭐ Risposte Approvate per l'Apprendimento</h2>
       <div id="approved-content">
         <!-- Approved responses will be loaded here -->
       </div>
@@ -95,7 +95,7 @@
   <div id="conversation-modal" class="modal">
     <div class="modal-content">
       <span class="close" onclick="closeModal()">&times;</span>
-      <h2>Conversation Details</h2>
+      <h2>Dettagli Conversazione</h2>
       <div id="conversation-detail"></div>
     </div>
   </div>
@@ -103,9 +103,9 @@
   <!-- Inline Feedback Form Template (hidden, will be cloned) -->
   <template id="feedback-form-template">
     <div class="inline-feedback-form">
-      <h4>💬 Provide Feedback</h4>
+      <h4>💬 Fornisci Feedback</h4>
       
-      <label>Rating:</label>
+      <label>Valutazione:</label>
       <div class="rating">
         <button type="button" onclick="setInlineRating(this, 1)">⭐</button>
         <button type="button" onclick="setInlineRating(this, 2)">⭐⭐</button>
@@ -115,30 +115,30 @@
       </div>
       <input type="hidden" class="selected-rating" value="3">
       
-      <label>Tags:</label>
+      <label>Tag:</label>
       <div class="tags">
-        <label><input type="checkbox" value="helpful"> Helpful</label>
-        <label><input type="checkbox" value="accurate"> Accurate</label>
-        <label><input type="checkbox" value="wrong_info"> Wrong Info</label>
-        <label><input type="checkbox" value="tone_issue"> Tone Issue</label>
-        <label><input type="checkbox" value="context_lost"> Context Lost</label>
-        <label><input type="checkbox" value="excellent"> Excellent</label>
+        <label><input type="checkbox" value="helpful"> Utile</label>
+        <label><input type="checkbox" value="accurate"> Accurata</label>
+        <label><input type="checkbox" value="wrong_info"> Info Errata</label>
+        <label><input type="checkbox" value="tone_issue"> Problema di Tono</label>
+        <label><input type="checkbox" value="context_lost"> Contesto Perso</label>
+        <label><input type="checkbox" value="excellent"> Eccellente</label>
       </div>
       
-      <label>Admin Comment:</label>
-      <textarea class="admin-comment" rows="3" placeholder="Your feedback..."></textarea>
+      <label>Commento Admin:</label>
+      <textarea class="admin-comment" rows="3" placeholder="Il tuo feedback..."></textarea>
       
-      <label>Corrected Response (optional):</label>
-      <textarea class="corrected-response" rows="4" placeholder="Provide a better response..."></textarea>
+      <label>Risposta Corretta (opzionale):</label>
+      <textarea class="corrected-response" rows="4" placeholder="Fornisci una risposta migliore..."></textarea>
       
       <div class="feedback-actions">
-        <button onclick="submitInlineFeedback(this)" class="submit-btn">💾 Submit Feedback</button>
-        <button onclick="approveInlineResponse(this)" class="approve-btn">✅ Approve for Learning</button>
-        <button onclick="closeInlineFeedback(this)" class="cancel-btn">✖️ Cancel</button>
+        <button onclick="submitInlineFeedback(this)" class="submit-btn">💾 Invia Feedback</button>
+        <button onclick="approveInlineResponse(this)" class="approve-btn">✅ Approva per Apprendimento</button>
+        <button onclick="closeInlineFeedback(this)" class="cancel-btn">✖️ Annulla</button>
       </div>
     </div>
   </template>
 
-  <script src="/static/admin/admin.js?v=2.2"></script>
+  <script src="/static/admin/admin.js?v=2.5"></script>
 </body>
 </html>
