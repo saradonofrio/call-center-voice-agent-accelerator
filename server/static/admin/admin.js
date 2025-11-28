@@ -4,6 +4,7 @@ let totalPages = 1;
 let currentConversationId = null;
 let currentTurnNumber = null;
 let conversationEvaluations = {}; // Cache for AI evaluations
+let activeStatFilter = null; // Track active stat filter: 'critical', 'needs_review', 'approved', 'all', or null
 
 // Switch between tabs
 function switchTab(tabName) {
@@ -61,9 +62,30 @@ async function loadConversations() {
     // Update summary banner
     updateSummaryBanner(criticalCount, needsReviewCount, approvedCount, conversations.length);
     
-    // Filter by needs_review if checkbox is checked
+    // Apply filters
     let filteredConversations = conversations;
-    if (needsReview) {
+    
+    // Filter by stat card selection (if any)
+    if (activeStatFilter) {
+      filteredConversations = filteredConversations.filter(conv => {
+        const eval = conversationEvaluations[conv.id];
+        if (!eval) return false;
+        
+        switch(activeStatFilter) {
+          case 'critical':
+            return eval.priority === 'critical';
+          case 'needs_review':
+            return eval.needs_review;
+          case 'approved':
+            return !eval.needs_review && eval.overall_score >= 7;
+          case 'all':
+            return true;
+          default:
+            return true;
+        }
+      });
+    } else if (needsReview) {
+      // Fallback to checkbox filter if no stat filter is active
       filteredConversations = conversations.filter(conv => {
         const eval = conversationEvaluations[conv.id];
         return eval && eval.needs_review;
@@ -84,30 +106,30 @@ function updateSummaryBanner(critical, needsReview, approved, total) {
   const banner = document.getElementById('summary-banner');
   banner.innerHTML = `
     <div class="summary-stats">
-      <div class="stat-card critical">
+      <div class="stat-card critical ${activeStatFilter === 'critical' ? 'active' : ''}" onclick="filterByStats('critical')" style="cursor: pointer;">
         <div class="stat-number">${critical}</div>
-        <div class="stat-label">🔴 Critical Issues</div>
+        <div class="stat-label">🔴 Critici</div>
       </div>
-      <div class="stat-card warning">
+      <div class="stat-card warning ${activeStatFilter === 'needs_review' ? 'active' : ''}" onclick="filterByStats('needs_review')" style="cursor: pointer;">
         <div class="stat-number">${needsReview}</div>
-        <div class="stat-label">⚠️ Needs Review</div>
+        <div class="stat-label">⚠️ Da Revisionare</div>
       </div>
-      <div class="stat-card success">
+      <div class="stat-card success ${activeStatFilter === 'approved' ? 'active' : ''}" onclick="filterByStats('approved')" style="cursor: pointer;">
         <div class="stat-number">${approved}</div>
-        <div class="stat-label">✅ Good Responses</div>
+        <div class="stat-label">✅ Risposte Approvate</div>
       </div>
-      <div class="stat-card info">
+      <div class="stat-card info ${activeStatFilter === 'all' ? 'active' : ''}" onclick="filterByStats('all')" style="cursor: pointer;">
         <div class="stat-number">${total}</div>
-        <div class="stat-label">📊 Total Conversations</div>
+        <div class="stat-label">📊 Conversazioni Totali</div>
       </div>
     </div>
     ${needsReview > 0 ? `
       <div class="attention-message">
-        👁️ <strong>${needsReview} conversation${needsReview > 1 ? 's' : ''} need${needsReview === 1 ? 's' : ''} your attention</strong> (out of ${total} total)
+        👁️ <strong>${needsReview} conversazione${needsReview > 1 ? 'i' : ''} necessita${needsReview === 1 ? '' : 'no'} la tua attenzione</strong> (su un totale di ${total})
       </div>
     ` : `
       <div class="attention-message success">
-        🎉 All conversations look good! No immediate review needed.
+        🎉 Tutte le conversazioni sono a posto! Nessuna revisione immediata necessaria.
       </div>
     `}
   `;
@@ -118,7 +140,7 @@ function displayConversations(conversations) {
   const container = document.getElementById('conversations-list');
   
   if (conversations.length === 0) {
-    container.innerHTML = '<p class="empty">No conversations found</p>';
+    container.innerHTML = '<p class="empty">Nessuna conversazione trovata</p>';
     return;
   }
   
@@ -136,9 +158,9 @@ function displayConversations(conversations) {
       </div>
       <div class="conv-meta">
         <span>📅 ${new Date(conv.timestamp).toLocaleString('it-IT')}</span>
-        <span>💬 ${conv.total_turns} turns</span>
+        <span>💬 ${conv.total_turns} dialoghi</span>
         <span>⏱️ ${conv.duration_seconds}s</span>
-        ${evaluation ? `<span>🤖 AI Score: ${evaluation.overall_score}/10</span>` : ''}
+        ${evaluation ? `<span>🤖 Punteggio AI: ${evaluation.overall_score}/10</span>` : ''}
       </div>
     </div>
     `;
@@ -160,23 +182,23 @@ async function viewConversation(conversationId) {
     detailDiv.innerHTML = `
       <div class="conv-info">
         <p><strong>ID:</strong> ${conv.id}</p>
-        <p><strong>Channel:</strong> ${conv.channel}</p>
-        <p><strong>Date:</strong> ${new Date(conv.timestamp).toLocaleString('it-IT')}</p>
-        <p><strong>Turns:</strong> ${conv.turns.length}</p>
+        <p><strong>Canale:</strong> ${conv.channel}</p>
+        <p><strong>Data:</strong> ${new Date(conv.timestamp).toLocaleString('it-IT')}</p>
+        <p><strong>Dialoghi:</strong> ${conv.turns.length}</p>
         ${conv.pii_detected_types && conv.pii_detected_types.length > 0 ? 
-          `<p><strong>PII Detected:</strong> ${conv.pii_detected_types.join(', ')}</p>` : ''}
+          `<p><strong>PII Rilevati:</strong> ${conv.pii_detected_types.join(', ')}</p>` : ''}
         ${evaluation ? `
           <div class="ai-evaluation-summary">
-            <p><strong>🤖 AI Evaluation:</strong></p>
-            <p>Overall Score: <strong>${evaluation.overall_score}/10</strong></p>
-            <p>Priority: ${getPriorityBadge(evaluation.priority, evaluation.overall_score)}</p>
-            <p>Needs Review: ${evaluation.needs_review ? '✅ Yes' : '❌ No'}</p>
+            <p><strong>🤖 Valutazione AI:</strong></p>
+            <p>Punteggio Complessivo: <strong>${evaluation.overall_score}/10</strong></p>
+            <p>Priorità: ${getPriorityBadge(evaluation.priority, evaluation.overall_score)}</p>
+            <p>Necessita Revisione: ${evaluation.needs_review ? '✅ Sì' : '❌ No'}</p>
             ${evaluation.critical_turns && evaluation.critical_turns.length > 0 ? 
-              `<p>Critical Turns: ${evaluation.critical_turns.join(', ')}</p>` : ''}
+              `<p>Turni Critici: ${evaluation.critical_turns.join(', ')}</p>` : ''}
           </div>
         ` : `
           <button onclick="evaluateSingleConversation('${conv.id}')" class="eval-btn">
-            🤖 Evaluate with AI
+            🤖 Valuta con AI
           </button>
         `}
       </div>
@@ -187,9 +209,9 @@ async function viewConversation(conversationId) {
           const turnEvalData = turnEval?.evaluation;
           
           return `
-          <div class="turn ${turnEvalData?.needs_review ? 'needs-review' : ''}" id="turn-${conv.id}-${turn.turn_number}">
+          <div class="dialogo ${turnEvalData?.needs_review ? 'revisione' : ''}" id="dialogo-${conv.id}-${turn.turn_number}">
             <div class="turn-header">
-              <span>Turn ${turn.turn_number}</span>
+              <span>Dialogo ${turn.turn_number}</span>
               ${turnEvalData ? getPriorityBadge(turnEvalData.priority, turnEvalData.overall_score) : ''}
               <button onclick="toggleInlineFeedback('${conv.id}', ${turn.turn_number})" class="feedback-btn">
                 💬 Feedback
@@ -197,16 +219,16 @@ async function viewConversation(conversationId) {
             </div>
             ${turnEvalData ? `
               <div class="ai-turn-evaluation">
-                <p><strong>🤖 AI Analysis:</strong> Score ${turnEvalData.overall_score}/10</p>
+                <p><strong>🤖 Analisi AI:</strong> Punteggio ${turnEvalData.overall_score}/10</p>
                 ${turnEvalData.evaluation_summary ? `<p><em>${turnEvalData.evaluation_summary}</em></p>` : ''}
                 ${turnEvalData.issues && turnEvalData.issues.length > 0 ? `
-                  <p><strong>Issues:</strong> ${turnEvalData.issues.join(', ')}</p>
+                  <p><strong>Problemi:</strong> ${turnEvalData.issues.join(', ')}</p>
                 ` : ''}
                 ${turnEvalData.strengths && turnEvalData.strengths.length > 0 ? `
-                  <p><strong>Strengths:</strong> ${turnEvalData.strengths.join(', ')}</p>
+                  <p><strong>Punti di Forza:</strong> ${turnEvalData.strengths.join(', ')}</p>
                 ` : ''}
                 <details>
-                  <summary>Category Scores</summary>
+                  <summary>Punteggi per Categoria</summary>
                   <ul>
                     ${Object.entries(turnEvalData.categories || {}).map(([cat, score]) => 
                       `<li>${cat}: ${score}/10</li>`
@@ -216,14 +238,14 @@ async function viewConversation(conversationId) {
               </div>
             ` : ''}
             <div class="message user-message">
-              <strong>User:</strong> ${turn.user_message}
+              <strong>Utente:</strong> ${turn.user_message}
             </div>
             <div class="message bot-message">
               <strong>Bot:</strong> ${turn.bot_response}
             </div>
             ${turn.search_used ? `
               <div class="search-info">
-                🔍 Search used: "${turn.search_query || 'N/A'}"
+                🔍 Ricerca utilizzata: "${turn.search_query || 'N/A'}"
               </div>
             ` : ''}
           </div>
@@ -233,8 +255,8 @@ async function viewConversation(conversationId) {
     
     modal.style.display = 'block';
   } catch (error) {
-    console.error('Error loading conversation:', error);
-    alert('Error loading conversation details');
+    console.error('Errore caricamento conversazione:', error);
+    alert('Errore durante il caricamento dei dettagli della conversazione');
   }
 }
 
@@ -244,13 +266,13 @@ async function evaluateSingleConversation(conversationId) {
   if (evaluation) {
     // Check if there was an error in the evaluation
     if (evaluation.error) {
-      alert(`⚠️ Evaluation completed with issues:\n\n${evaluation.error}\n\nScore: ${evaluation.overall_score}/10`);
+      alert(`⚠️ Valutazione completata con problemi:\n\n${evaluation.error}\n\nPunteggio: ${evaluation.overall_score}/10`);
     } else {
-      alert('✅ Conversation evaluated successfully!');
+      alert('✅ Conversazione valutata con successo!');
     }
     viewConversation(conversationId); // Reload the view
   } else {
-    alert('❌ Error: Unable to evaluate conversation. Check server logs for details.');
+    alert('❌ Errore: Impossibile valutare la conversazione. Controlla i log del server per i dettagli.');
   }
 }
 
@@ -261,7 +283,11 @@ function closeModal() {
 
 // Toggle inline feedback form with AI pre-fill
 async function toggleInlineFeedback(conversationId, turnNumber) {
-  const turnDiv = document.getElementById(`turn-${conversationId}-${turnNumber}`);
+  const turnDiv = document.getElementById(`dialogo-${conversationId}-${turnNumber}`);
+  if (!turnDiv) {
+    console.error(`Turn div not found: dialogo-${conversationId}-${turnNumber}`);
+    return;
+  }
   const existingForm = turnDiv.querySelector('.inline-feedback-form');
   
   // If form already exists, remove it
@@ -413,7 +439,7 @@ async function submitInlineFeedback(button) {
   
   try {
     button.disabled = true;
-    button.textContent = '⏳ Submitting...';
+    button.textContent = '⏳ Invio...';
     
     const response = await fetch(`/admin/api/feedback/${conversationId}`, {
       method: 'POST',
@@ -429,19 +455,19 @@ async function submitInlineFeedback(button) {
     });
     
     if (response.ok) {
-      alert('✅ Feedback submitted successfully!');
+      alert('✅ Feedback inviato con successo!');
       form.remove();
       loadConversations(); // Refresh list
     } else {
-      alert('❌ Error submitting feedback');
+      alert('❌ Errore durante l\'invio del feedback');
       button.disabled = false;
-      button.textContent = '💾 Submit Feedback';
+      button.textContent = '💾 Invia Feedback';
     }
   } catch (error) {
     console.error('Error submitting feedback:', error);
-    alert('❌ Error submitting feedback');
+    alert('❌ Errore durante l\'invio del feedback');
     button.disabled = false;
-    button.textContent = '💾 Submit Feedback';
+    button.textContent = '💾 Invia Feedback';
   }
 }
 
@@ -453,32 +479,32 @@ async function approveInlineResponse(button) {
   
   try {
     button.disabled = true;
-    button.textContent = '⏳ Approving...';
+    button.textContent = '⏳ Approvazione in corso...';
     
     const response = await fetch(`/admin/api/approve/${conversationId}/${turnNumber}`, {
       method: 'POST'
     });
     
     if (response.ok) {
-      alert('✅ Response approved for bot learning!');
+      alert('✅ Risposta approvata per l\'apprendimento del bot!');
       form.remove();
       loadConversations();
     } else {
-      alert('❌ Error approving response');
+      alert('❌ Errore durante l\'approvazione della risposta');
       button.disabled = false;
-      button.textContent = '✅ Approve for Learning';
+      button.textContent = '✅ Approva per Apprendimento';
     }
   } catch (error) {
-    console.error('Error approving response:', error);
-    alert('❌ Error approving response');
+    console.error('Errore durante l\'approvazione della risposta:', error);
+    alert('❌ Errore durante l\'approvazione della risposta');
     button.disabled = false;
-    button.textContent = '✅ Approve for Learning';
+    button.textContent = '✅ Approva per Apprendimento';
   }
 }
 
 // Approve response for learning
 async function approveResponse() {
-  if (!confirm('Approve this response for bot learning?')) return;
+  if (!confirm('Approva questa risposta per l\'apprendimento del bot?')) return;
   
   try {
     const response = await fetch(`/admin/api/approve/${currentConversationId}/${currentTurnNumber}`, {
@@ -486,14 +512,14 @@ async function approveResponse() {
     });
     
     if (response.ok) {
-      alert('Response approved and indexed for learning!');
+      alert('Risposta approvata e indicizzata per l\'apprendimento!');
       closeFeedbackModal();
     } else {
-      alert('Error approving response');
+      alert('Errore durante l\'approvazione della risposta');
     }
   } catch (error) {
-    console.error('Error approving response:', error);
-    alert('Error approving response');
+    console.error('Errore durante l\'approvazione della risposta:', error);
+    alert('Errore durante l\'approvazione della risposta');
   }
 }
 
@@ -588,18 +614,18 @@ async function evaluateConversation(conversationId) {
       
       // Show detailed error to user
       if (errorData.error) {
-        alert(`⚠️ Evaluation Error:\n\n${errorData.error}`);
+        alert(`⚠️ Errore durante la valutazione:\n\n${errorData.error}`);
       }
     }
   } catch (error) {
-    console.error(`Error evaluating conversation ${conversationId}:`, error);
+    console.error(`Errore durante la valutazione della conversazione ${conversationId}:`, error);
   }
   return null;
 }
 
 // Evaluate all visible conversations
 async function evaluateAllConversations() {
-  if (!confirm('Evaluate all conversations with AI? This may take a few moments.')) {
+  if (!confirm('Valutare tutte le conversazioni con l\'IA? Questo potrebbe richiedere qualche istante.')) {
     return;
   }
   
@@ -624,19 +650,45 @@ async function evaluateAllConversations() {
     evaluated++;
   }
   
-  alert(`Evaluated ${evaluated} conversations!`);
+  alert(`Valutate ${evaluated} conversazioni!`);
   loadConversations(); // Reload to show updated badges
 }
 
 // Get priority badge HTML
 function getPriorityBadge(priority, score) {
   const badges = {
-    'critical': `<span class="priority-badge critical">🚨 Critical (${score}/10)</span>`,
-    'high': `<span class="priority-badge high">⚠️ High (${score}/10)</span>`,
-    'medium': `<span class="priority-badge medium">ℹ️ Medium (${score}/10)</span>`,
-    'low': `<span class="priority-badge low">✅ Good (${score}/10)</span>`
+    'critical': `<span class="priority-badge critical">🚨 Critico (${score}/10)</span>`,
+    'high': `<span class="priority-badge high">⚠️ Alto (${score}/10)</span>`,
+    'medium': `<span class="priority-badge medium">ℹ️ Medio (${score}/10)</span>`,
+    'low': `<span class="priority-badge low">✅ Buono (${score}/10)</span>`
   };
   return badges[priority] || '';
+}
+
+// Filter by stats card
+function filterByStats(filterType) {
+  // Toggle filter: if clicking the same filter, deactivate it
+  if (activeStatFilter === filterType) {
+    activeStatFilter = null;
+    // Uncheck the needs-review checkbox if it's active
+    const checkbox = document.getElementById('needs-review-filter');
+    if (checkbox && filterType !== 'all') {
+      checkbox.checked = false;
+    }
+  } else {
+    activeStatFilter = filterType;
+    // Sync with checkbox when selecting 'needs_review'
+    const checkbox = document.getElementById('needs-review-filter');
+    if (checkbox && filterType === 'needs_review') {
+      checkbox.checked = true;
+    } else if (checkbox) {
+      checkbox.checked = false;
+    }
+  }
+  
+  // Reset to page 1 and reload
+  currentPage = 1;
+  loadConversations();
 }
 
 // Initial load
