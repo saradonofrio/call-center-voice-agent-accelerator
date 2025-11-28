@@ -1156,24 +1156,46 @@ async def get_conversations():
         end_date_str = request.args.get("end_date")
         
         # Parse dates
-        start_date = datetime.fromisoformat(start_date_str) if start_date_str else None
-        end_date = datetime.fromisoformat(end_date_str) if end_date_str else None
+        start_date = None
+        end_date = None
+        if start_date_str:
+            try:
+                start_date = datetime.fromisoformat(start_date_str).replace(tzinfo=timezone.utc)
+            except ValueError:
+                # Try parsing as date only (YYYY-MM-DD)
+                start_date = datetime.strptime(start_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        if end_date_str:
+            try:
+                end_date = datetime.fromisoformat(end_date_str).replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+            except ValueError:
+                # Try parsing as date only (YYYY-MM-DD)
+                end_date = datetime.strptime(end_date_str, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
         
         # Get conversations from storage
         conversations_list = []
         container_client = conversation_logger.blob_service_client.get_container_client("conversations")
         
         async for blob in container_client.list_blobs():
-            # Apply date filter
-            if start_date and blob.creation_time and blob.creation_time.replace(tzinfo=timezone.utc) < start_date:
-                continue
-            if end_date and blob.creation_time and blob.creation_time.replace(tzinfo=timezone.utc) > end_date:
-                continue
-            
-            # Download conversation
+            # Download conversation first to get accurate timestamp
             blob_client = container_client.get_blob_client(blob.name)
             content = await blob_client.download_blob()
             conv = json.loads(await content.readall())
+            
+            # Apply date filter using conversation timestamp
+            if start_date or end_date:
+                try:
+                    conv_timestamp = datetime.fromisoformat(conv.get("timestamp", ""))
+                    if not conv_timestamp.tzinfo:
+                        conv_timestamp = conv_timestamp.replace(tzinfo=timezone.utc)
+                    
+                    if start_date and conv_timestamp < start_date:
+                        continue
+                    if end_date and conv_timestamp > end_date:
+                        continue
+                except (ValueError, TypeError):
+                    # Skip conversations with invalid timestamps if date filter is active
+                    if start_date or end_date:
+                        continue
             
             # Apply channel filter
             if channel_filter and conv.get("channel") != channel_filter:
@@ -1244,7 +1266,7 @@ async def get_conversation_detail(conversation_id: str):
 @app.route("/admin/api/feedback/<conversation_id>", methods=["POST"])
 @rate_limit(max_requests=RATE_LIMIT_API_COUNT, window_seconds=RATE_LIMIT_API_WINDOW)
 @require_auth_optional(azure_ad_auth)
-async def submit_feedback():
+async def submit_feedback(conversation_id: str):
     """
     Submit feedback for a conversation turn.
     
@@ -1285,7 +1307,8 @@ async def submit_feedback():
             "tags": tags,
             "admin_comment": admin_comment,
             "corrected_response": corrected_response,
-            "approved": False
+            "approved": False,
+            "reviewed": True  # Mark as reviewed when feedback is submitted
         }
         
         # Save to storage
@@ -1368,8 +1391,9 @@ async def approve_response(conversation_id: str, turn_number: int):
             tags = feedback_data.get("tags", ["approved"])
             admin_comment = feedback_data.get("admin_comment", "")
             
-            # Mark as approved
+            # Mark as approved and reviewed
             feedback_data["approved"] = True
+            feedback_data["reviewed"] = True
             await feedback_blob.upload_blob(
                 json.dumps(feedback_data, indent=2, ensure_ascii=False),
                 overwrite=True
@@ -1402,6 +1426,39 @@ async def approve_response(conversation_id: str, turn_number: int):
         
     except Exception as e:
         logger_endpoint.error(f"Error approving response: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/admin/api/feedback/<conversation_id>", methods=["GET"])
+@rate_limit(max_requests=RATE_LIMIT_API_COUNT, window_seconds=RATE_LIMIT_API_WINDOW)
+@require_auth_optional(azure_ad_auth)
+async def get_feedback(conversation_id: str):
+    """
+    Get all feedback for a conversation.
+    
+    Returns:
+        JSON: List of feedbacks for the conversation
+    """
+    logger_endpoint = logging.getLogger("get_feedback")
+    
+    try:
+        feedback_container = conversation_logger.blob_service_client.get_container_client("feedback")
+        
+        feedbacks = []
+        try:
+            async for blob in feedback_container.list_blobs():
+                if conversation_id in blob.name:
+                    blob_client = feedback_container.get_blob_client(blob.name)
+                    content = await blob_client.download_blob()
+                    feedback_data = json.loads(await content.readall())
+                    feedbacks.append(feedback_data)
+        except Exception as e:
+            logger_endpoint.warning(f"No feedbacks found for {conversation_id}: {e}")
+        
+        return jsonify({"feedbacks": feedbacks}), 200
+        
+    except Exception as e:
+        logger_endpoint.error(f"Error getting feedback: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 

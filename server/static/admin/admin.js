@@ -4,6 +4,7 @@ let totalPages = 1;
 let currentConversationId = null;
 let currentTurnNumber = null;
 let conversationEvaluations = {}; // Cache for AI evaluations
+let conversationFeedbacks = {}; // Cache for feedbacks
 let activeStatFilter = null; // Track active stat filter: 'critical', 'needs_review', 'approved', 'all', or null
 
 // Switch between tabs
@@ -41,9 +42,12 @@ async function loadConversations() {
     const response = await fetch(`/admin/api/conversations?${params}`);
     const data = await response.json();
     
-    // Load AI evaluations for each conversation
+    // Load AI evaluations and feedbacks for each conversation
     const conversations = data.conversations;
-    await Promise.all(conversations.map(conv => loadEvaluation(conv.id)));
+    await Promise.all(conversations.map(async conv => {
+      await loadEvaluation(conv.id);
+      await loadFeedback(conv.id);
+    }));
     
     // Calculate summary statistics
     let criticalCount = 0;
@@ -53,9 +57,20 @@ async function loadConversations() {
     conversations.forEach(conv => {
       const eval = conversationEvaluations[conv.id];
       if (eval) {
-        if (eval.priority === 'critical') criticalCount++;
-        if (eval.needs_review) needsReviewCount++;
-        if (!eval.needs_review && eval.overall_score >= 7) approvedCount++;
+        // Count critical turns (not just critical conversations)
+        if (eval.turn_evaluations) {
+          eval.turn_evaluations.forEach(turnEval => {
+            if (turnEval.evaluation?.priority === 'critical') {
+              criticalCount++;
+            }
+            if (turnEval.evaluation?.needs_review) {
+              needsReviewCount++;
+            }
+            if (turnEval.evaluation && !turnEval.evaluation.needs_review && turnEval.evaluation.overall_score >= 7) {
+              approvedCount++;
+            }
+          });
+        }
       }
     });
     
@@ -69,15 +84,24 @@ async function loadConversations() {
     if (activeStatFilter) {
       filteredConversations = filteredConversations.filter(conv => {
         const eval = conversationEvaluations[conv.id];
-        if (!eval) return false;
+        if (!eval || !eval.turn_evaluations) return false;
         
         switch(activeStatFilter) {
           case 'critical':
-            return eval.priority === 'critical';
+            // Check if conversation has any critical turns
+            return eval.turn_evaluations.some(turnEval => 
+              turnEval.evaluation?.priority === 'critical'
+            );
           case 'needs_review':
-            return eval.needs_review;
+            // Check if conversation has any turns that need review
+            return eval.turn_evaluations.some(turnEval => 
+              turnEval.evaluation?.needs_review
+            );
           case 'approved':
-            return !eval.needs_review && eval.overall_score >= 7;
+            // Check if conversation has any approved turns
+            return eval.turn_evaluations.some(turnEval => 
+              turnEval.evaluation && !turnEval.evaluation.needs_review && turnEval.evaluation.overall_score >= 7
+            );
           case 'all':
             return true;
           default:
@@ -208,11 +232,17 @@ async function viewConversation(conversationId) {
           const turnEval = evaluation?.turn_evaluations?.find(e => e.turn_number === turn.turn_number);
           const turnEvalData = turnEval?.evaluation;
           
+          // Check if this turn has been reviewed
+          const feedbacks = conversationFeedbacks[conv.id] || [];
+          const turnFeedback = feedbacks.find(fb => fb.turn_number === turn.turn_number);
+          const isReviewed = turnFeedback?.reviewed || false;
+          
           return `
-          <div class="dialogo ${turnEvalData?.needs_review ? 'revisione' : ''}" id="dialogo-${conv.id}-${turn.turn_number}">
+          <div class="dialogo ${turnEvalData?.needs_review ? 'revisione' : ''} ${isReviewed ? 'reviewed' : ''}" id="dialogo-${conv.id}-${turn.turn_number}">
             <div class="turn-header">
               <span>Dialogo ${turn.turn_number}</span>
               ${turnEvalData ? getPriorityBadge(turnEvalData.priority, turnEvalData.overall_score) : ''}
+              ${isReviewed ? '<span class="reviewed-badge">✅ Gestito</span>' : ''}
               <button onclick="toggleInlineFeedback('${conv.id}', ${turn.turn_number})" class="feedback-btn">
                 💬 Feedback
               </button>
@@ -580,6 +610,24 @@ function updatePagination() {
   document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages}`;
   document.getElementById('prev-page').disabled = currentPage === 1;
   document.getElementById('next-page').disabled = currentPage === totalPages;
+}
+
+// Load feedback for a conversation
+async function loadFeedback(conversationId) {
+  if (conversationFeedbacks[conversationId]) return;
+  
+  try {
+    const response = await fetch(`/admin/api/feedback/${conversationId}`);
+    if (response.ok) {
+      const data = await response.json();
+      conversationFeedbacks[conversationId] = data.feedbacks || [];
+    } else {
+      conversationFeedbacks[conversationId] = [];
+    }
+  } catch (error) {
+    console.error(`Error loading feedback for ${conversationId}:`, error);
+    conversationFeedbacks[conversationId] = [];
+  }
 }
 
 // Load AI evaluation for a conversation

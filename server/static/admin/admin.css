@@ -414,11 +414,36 @@ h1 {
   margin-bottom: 15px;
   padding-bottom: 10px;
   border-bottom: 1px solid #e0e0e0;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .turn-header span {
   font-weight: 600;
   color: #2c3e50;
+}
+
+.reviewed-badge {
+  background: #28a745;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+}
+
+.dialogo.reviewed {
+  border-left: 4px solid #28a745;
+  background: #f8fff9;
+}
+
+.dialogo.reviewed.revisione {
+  border-left: 4px solid #28a745;
+  background: linear-gradient(to right, #f8fff9 0%, #fff3cd 100%);
 }
 
 .feedback-btn {
