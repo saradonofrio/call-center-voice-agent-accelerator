@@ -807,12 +807,13 @@ textarea {
 
 /* Inline Feedback Form */
 .inline-feedback-form {
-  background: #f8f9fa;
+  background: #ffffff;
   border: 2px solid #dee2e6;
-  border-radius: 8px;
-  padding: 20px;
+  border-radius: 12px;
+  padding: 24px;
   margin-top: 15px;
   animation: slideDown 0.3s ease-out;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
 .ai-loading {
@@ -844,9 +845,75 @@ textarea {
 }
 
 .inline-feedback-form h4 {
-  margin: 0 0 15px 0;
-  color: #495057;
-  font-size: 1.1rem;
+  margin: 0 0 20px 0;
+  color: #212529;
+  font-size: 1.2rem;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.feedback-section {
+  margin-bottom: 20px;
+}
+
+.feedback-section.correction-section {
+  background: #fff8e1;
+  padding: 16px;
+  border-radius: 8px;
+  border: 2px dashed #ffc107;
+}
+
+.help-text {
+  font-size: 0.85rem;
+  color: #6c757d;
+  font-weight: normal;
+  font-style: italic;
+}
+
+.feedback-actions-container {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 2px solid #e9ecef;
+}
+
+.action-group {
+  margin-bottom: 16px;
+  padding: 16px;
+  border-radius: 8px;
+  border: 2px solid #e9ecef;
+}
+
+.action-group.action-for-wrong {
+  background: #fff5f5;
+  border-color: #ffcdd2;
+}
+
+.action-group.action-for-good {
+  background: #f1f8f4;
+  border-color: #c8e6c9;
+}
+
+.action-label {
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 10px;
+  color: #212529;
+}
+
+.action-help {
+  font-size: 0.85rem;
+  color: #6c757d;
+  margin-top: 6px;
+  font-style: italic;
+}
+
+.action-divider {
+  text-align: center;
+  font-weight: 700;
+  color: #868e96;
+  margin: 20px 0;
+  font-size: 0.9rem;
+  letter-spacing: 1px;
 }
 
 .inline-feedback-form label {
@@ -933,27 +1000,39 @@ textarea {
 }
 
 .feedback-actions button {
-  padding: 10px 20px;
+  padding: 12px 24px;
   border: none;
-  border-radius: 6px;
-  font-size: 0.95rem;
+  border-radius: 8px;
+  font-size: 1rem;
   cursor: pointer;
   transition: all 0.2s;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .submit-btn {
-  background: #007bff;
+  background: #dc3545;
   color: white;
+  width: 100%;
+  box-shadow: 0 2px 6px rgba(220, 53, 69, 0.3);
 }
 
 .submit-btn:hover:not(:disabled) {
-  background: #0056b3;
+  background: #c82333;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(220, 53, 69, 0.4);
 }
 
 .approve-btn {
   background: #28a745;
   color: white;
+  width: 100%;
+  box-shadow: 0 2px 6px rgba(40, 167, 69, 0.3);
+}
+
+.approve-btn:hover:not(:disabled) {
+  background: #218838;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(40, 167, 69, 0.4);
 }
 
 .approve-btn:hover:not(:disabled) {
@@ -963,10 +1042,13 @@ textarea {
 .cancel-btn {
   background: #6c757d;
   color: white;
+  margin-top: 16px;
+  width: 100%;
 }
 
 .cancel-btn:hover {
   background: #5a6268;
+  transform: translateY(-1px);
 }
 
 .feedback-actions button:disabled {
