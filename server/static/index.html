@@ -816,7 +816,10 @@
        */
       socket.onclose = () => {
         stopMicrophone();
-        document.getElementById("stopBtn").disabled = true;
+        const stopBtn = document.getElementById("stopBtn");
+        if (stopBtn) {
+          stopBtn.disabled = true;
+        }
       };
 
       /**

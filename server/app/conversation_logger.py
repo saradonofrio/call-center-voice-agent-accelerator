@@ -123,7 +123,7 @@ class ConversationLogger:
         conversation = {
             "id": f"conv-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{session_id[:8]}",
             "session_id": session_id,
-            "session_id_hash": PIIAnonymizer.hash_session_id(session_id),
+            "session_id_hash": PIIAnonymizerPresidio.hash_session_id(session_id),
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "channel": channel,
             "turns": [],
@@ -132,7 +132,7 @@ class ConversationLogger:
         }
         
         if phone_number:
-            conversation["phone_number_hash"] = PIIAnonymizer.hash_phone_number(phone_number)
+            conversation["phone_number_hash"] = PIIAnonymizerPresidio.hash_phone_number(phone_number)
         
         self.active_conversations[session_id] = conversation
         logger.info(f"Started conversation: {conversation['id']} (channel: {channel})")
@@ -270,7 +270,7 @@ class ConversationLogger:
         try:
             # Create map data with metadata
             map_data = {
-                "session_id_hash": PIIAnonymizer.hash_session_id(session_id),
+                "session_id_hash": PIIAnonymizerPresidio.hash_session_id(session_id),
                 "conversation_id": conversation_id,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "encryption_version": "1.0",
@@ -282,7 +282,7 @@ class ConversationLogger:
             encrypted_data = self.encryption_utils.encrypt_map(map_data)
             
             # Save to blob storage
-            blob_name = f"map-{PIIAnonymizer.hash_session_id(session_id)[:16]}.json.encrypted"
+            blob_name = f"map-{PIIAnonymizerPresidio.hash_session_id(session_id)[:16]}.json.encrypted"
             blob_client = self.maps_container.get_blob_client(blob_name)
             
             await blob_client.upload_blob(
