@@ -169,14 +169,14 @@ class ConversationLogger:
         # Anonymize user message (Presidio with threshold 0.6 to reduce false positives)
         user_anonymized = self.pii_anonymizer.anonymize_text(user_message, session_id, score_threshold=0.6)
         
-        # Anonymize bot response (in case it echoed PII)
-        bot_anonymized = self.pii_anonymizer.anonymize_text(bot_response, session_id, score_threshold=0.6)
+        # Bot response is NOT anonymized - only user input contains PII
+        # The bot should not echo PII in responses
         
         # Create turn data
         turn = {
             "turn_number": len(conversation["turns"]) + 1,
             "user_message": user_anonymized["anonymized_text"],
-            "bot_response": bot_anonymized["anonymized_text"],
+            "bot_response": bot_response,  # Original bot response, not anonymized
             "search_used": search_used,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
@@ -192,8 +192,8 @@ class ConversationLogger:
         if response_time_ms:
             turn["response_time_ms"] = response_time_ms
         
-        # Track PII types detected
-        pii_types = set(user_anonymized["pii_found"] + bot_anonymized["pii_found"])
+        # Track PII types detected (only from user messages)
+        pii_types = set(user_anonymized["pii_found"])
         conversation["pii_detected_types"].update(pii_types)
         
         # Add turn to conversation
