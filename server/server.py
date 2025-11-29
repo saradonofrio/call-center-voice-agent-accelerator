@@ -425,7 +425,10 @@ async def acs_ws():
     logger.info("Incoming ACS WebSocket connection")
     
     # Initialize media handler for this connection
-    handler = ACSMediaHandler(app.config)
+    handler_config = dict(app.config)
+    if conversation_logger:
+        handler_config["BLOB_SERVICE_CLIENT"] = conversation_logger.blob_service_client
+    handler = ACSMediaHandler(handler_config)
     
     # Set up incoming WebSocket (ACS sends JSON messages)
     await handler.init_incoming_websocket(websocket, is_raw_audio=False)
@@ -483,7 +486,10 @@ async def web_ws():
     logger.info("Incoming Web WebSocket connection")
     
     # Initialize media handler for this connection
-    handler = ACSMediaHandler(app.config)
+    handler_config = dict(app.config)
+    if conversation_logger:
+        handler_config["BLOB_SERVICE_CLIENT"] = conversation_logger.blob_service_client
+    handler = ACSMediaHandler(handler_config)
     
     # Set up incoming WebSocket (browser sends raw audio bytes)
     await handler.init_incoming_websocket(websocket, is_raw_audio=True)
@@ -596,61 +602,114 @@ async def serve_static(filename):
 @app.route("/api/instructions", methods=["GET"])
 async def get_instructions():
     """
-    Get the default AI system instructions.
+    Get the AI system instructions from Azure Blob Storage.
     
-    Returns the default instructions with placeholder examples.
-    Placeholders are processed by the frontend before sending to Voice Live API.
+    Reads the instructions from the 'system-instructions' container in Azure Storage.
+    If the file doesn't exist, returns default fallback instructions.
     
     Returns:
-        JSON: Object containing the default base_instructions with placeholders
+        JSON: Object containing the base_instructions from blob storage
+        500: If there's an error reading from storage
     """
-    # Return default instructions WITH PLACEHOLDERS as examples
-    # Frontend will replace {{TODAY_IT}}, {{DAY_IT}}, etc. with actual values
-    base_instructions = (
-        "Sei un assistente virtuale farmacista che risponde in modo naturale e con frasi brevi. "
-        "Parla in italiano, a meno che le domande non arrivino in altra lingua. "
-        "Ricordati che oggi è {{TODAY_IT}}, {{DAY_IT}}, usa questa data come riferimento temporale per rispondere alle domande. "
-        "Parla solo di argomenti inerenti la farmacia, se la ricerca non trova risultati rilevanti, rispondi 'Ti consiglio di contattare la farmacia.' "
-        "Inizia la conversazione chiedendo 'Come posso esserti utile?'\n\n"
-        "IMPORTANTE: Quando rispondi via testo (non voce), usa formattazione per migliorare la leggibilità:\n"
-        "- Usa **grassetto** per evidenziare parole importanti\n"
-        "- Usa elenchi puntati (- o •) per liste di farmaci, orari, o servizi\n"
-        "- Vai a capo per separare concetti diversi\n"
-        "- Usa elenchi numerati (1. 2. 3.) per istruzioni in sequenza\n"
-        "Esempio: 'Ecco gli orari:\n- Lunedì: 9:00-19:00\n- Martedì: 9:00-19:00'"
-    )
+    logger_endpoint = logging.getLogger("get_instructions")
     
-    return jsonify({"instructions": base_instructions}), 200
+    try:
+        # Get blob client for system instructions
+        blob_service_client = conversation_logger.blob_service_client
+        container_client = blob_service_client.get_container_client("system-instructions")
+        blob_client = container_client.get_blob_client("ai_system_intructions.txt")
+        
+        # Download and decode instructions
+        blob_data = await blob_client.download_blob()
+        instructions_bytes = await blob_data.readall()
+        base_instructions = instructions_bytes.decode('utf-8')
+        
+        logger_endpoint.info("Successfully loaded instructions from blob storage")
+        return jsonify({"instructions": base_instructions}), 200
+        
+    except Exception as e:
+        logger_endpoint.error(f"Error loading instructions from blob storage: {e}")
+        
+        # Return default fallback instructions
+        base_instructions = (
+            "Sei un assistente virtuale farmacista che risponde in modo naturale e con frasi brevi. "
+            "Parla in italiano, a meno che le domande non arrivino in altra lingua. "
+            "Ricordati che oggi è {{TODAY_IT}}, {{DAY_IT}}, usa questa data come riferimento temporale per rispondere alle domande. "
+            "Parla solo di argomenti inerenti la farmacia, se la ricerca non trova risultati rilevanti, rispondi 'Ti consiglio di contattare la farmacia.' "
+            "Inizia la conversazione chiedendo 'Come posso esserti utile?'\n\n"
+            "IMPORTANTE: Quando rispondi via testo (non voce), usa formattazione per migliorare la leggibilità:\n"
+            "- Usa **grassetto** per evidenziare parole importanti\n"
+            "- Usa elenchi puntati (- o •) per liste di farmaci, orari, o servizi\n"
+            "- Vai a capo per separare concetti diversi\n"
+            "- Usa elenchi numerati (1. 2. 3.) per istruzioni in sequenza\n"
+            "Esempio: 'Ecco gli orari:\n- Lunedì: 9:00-19:00\n- Martedì: 9:00-19:00'"
+        )
+        
+        return jsonify({
+            "instructions": base_instructions,
+            "warning": "Using fallback instructions - could not load from storage"
+        }), 200
 
 
 @app.route("/api/instructions", methods=["POST"])
 async def save_instructions():
     """
-    Save custom AI instructions (stored in session for next WebSocket connection).
+    Save custom AI instructions to Azure Blob Storage.
     
-    Note: This is a placeholder endpoint. The actual instructions are sent
-    via WebSocket when the connection is established.
+    This endpoint allows admins to update the AI system instructions.
+    The new instructions are saved to the 'system-instructions' container
+    in Azure Storage and will be used for all future bot conversations.
+    
+    Request Body:
+        {
+            "instructions": "New AI instructions text..."
+        }
     
     Returns:
-        JSON: Success message
+        JSON: Success message with timestamp
+        400: If instructions are empty or invalid
+        500: If there's an error writing to storage
     """
+    logger_endpoint = logging.getLogger("save_instructions")
+    
     try:
         data = await request.get_json()
         instructions = data.get("instructions")
         
+        # Validate instructions
         if not instructions:
             return jsonify({"error": "Instructions cannot be empty"}), 400
         
-        # In a real implementation, you might store this in Redis or a database
-        # For now, we just acknowledge receipt since the client will send
-        # the instructions via WebSocket on connection
-        logger.info("Received custom instructions (will be applied on next WebSocket connection)")
+        if not isinstance(instructions, str):
+            return jsonify({"error": "Instructions must be a string"}), 400
         
-        return jsonify({"message": "Instructions received"}), 200
+        if len(instructions.strip()) < 10:
+            return jsonify({"error": "Instructions too short (minimum 10 characters)"}), 400
+        
+        # Get blob client for system instructions
+        blob_service_client = conversation_logger.blob_service_client
+        container_client = blob_service_client.get_container_client("system-instructions")
+        blob_client = container_client.get_blob_client("ai_system_intructions.txt")
+        
+        # Save instructions to blob storage
+        instructions_bytes = instructions.encode('utf-8')
+        await blob_client.upload_blob(
+            instructions_bytes,
+            overwrite=True,
+            content_settings=ContentSettings(content_type='text/plain; charset=utf-8')
+        )
+        
+        logger_endpoint.info(f"Successfully saved instructions to blob storage ({len(instructions)} chars)")
+        
+        return jsonify({
+            "message": "Instructions saved successfully",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "size": len(instructions)
+        }), 200
     
     except Exception as e:
-        logger.exception("Error saving instructions")
-        return jsonify({"error": str(e)}), 500
+        logger_endpoint.exception("Error saving instructions to blob storage")
+        return jsonify({"error": f"Failed to save instructions: {str(e)}"}), 500
 
 
 # ============================================================
@@ -1459,6 +1518,54 @@ async def get_feedback(conversation_id: str):
         
     except Exception as e:
         logger_endpoint.error(f"Error getting feedback: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/admin/api/approved-responses", methods=["GET"])
+@rate_limit(max_requests=RATE_LIMIT_API_COUNT, window_seconds=RATE_LIMIT_API_WINDOW)
+@require_auth_optional(azure_ad_auth)
+async def get_approved_responses():
+    """
+    Get all approved responses.
+    
+    Returns:
+        JSON: List of approved responses
+    """
+    logger_endpoint = logging.getLogger("get_approved_responses")
+    
+    try:
+        approved_list = []
+        
+        # Get from feedback container (approved=true)
+        try:
+            feedback_container = conversation_logger.blob_service_client.get_container_client("feedback")
+            async for blob in feedback_container.list_blobs():
+                blob_client = feedback_container.get_blob_client(blob.name)
+                content = await blob_client.download_blob()
+                feedback_data = json.loads(await content.readall())
+                
+                if feedback_data.get("approved"):
+                    approved_list.append({
+                        "id": feedback_data.get("feedback_id"),
+                        "conversation_id": feedback_data.get("conversation_id"),
+                        "turn_number": feedback_data.get("turn_number"),
+                        "timestamp": feedback_data.get("timestamp"),
+                        "admin_user": feedback_data.get("admin_user"),
+                        "rating": feedback_data.get("rating"),
+                        "tags": feedback_data.get("tags", []),
+                        "admin_comment": feedback_data.get("admin_comment", ""),
+                        "corrected_response": feedback_data.get("corrected_response", "")
+                    })
+        except Exception as e:
+            logger_endpoint.warning(f"Error loading approved responses from feedback: {e}")
+        
+        # Sort by timestamp (newest first)
+        approved_list.sort(key=lambda x: x["timestamp"], reverse=True)
+        
+        return jsonify({"approved_responses": approved_list}), 200
+        
+    except Exception as e:
+        logger_endpoint.error(f"Error getting approved responses: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 

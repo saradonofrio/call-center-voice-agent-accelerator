@@ -20,6 +20,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     allowSharedKeyAccess: true
     minimumTlsVersion: 'TLS1_2'
     supportsHttpsTrafficOnly: true
+    isHnsEnabled: false  // Explicitly disable Hierarchical Namespace (DataLake Gen2)
     networkAcls: {
       defaultAction: 'Allow'
       bypass: 'AzureServices'
@@ -27,14 +28,27 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   }
 }
 
-// Create blob service
+// Create blob service with enhanced backup protection
 resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
   parent: storageAccount
   name: 'default'
   properties: {
+    // Soft delete for blobs - recover deleted blobs within 30 days
     deleteRetentionPolicy: {
       enabled: true
-      days: 7
+      days: 30
+    }
+    // Soft delete for containers - recover deleted containers within 30 days
+    containerDeleteRetentionPolicy: {
+      enabled: true
+      days: 30
+    }
+    // Versioning - keep history of blob changes
+    isVersioningEnabled: true
+    // Point-in-time restore capability
+    restorePolicy: {
+      enabled: true
+      days: 29
     }
   }
 }
