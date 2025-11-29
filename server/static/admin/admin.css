@@ -853,6 +853,14 @@ textarea {
   color: #ffaa00;
 }
 
+.stat-card.reviewed {
+  background: linear-gradient(135deg, rgba(103, 58, 183, 0.15), rgba(156, 39, 176, 0.15));
+}
+
+.stat-card.reviewed .stat-number {
+  color: #9c27b0;
+}
+
 .stat-card.success .stat-number {
   color: #00ff88;
 }

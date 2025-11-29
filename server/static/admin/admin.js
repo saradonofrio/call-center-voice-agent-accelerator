@@ -55,6 +55,7 @@ async function loadConversations() {
     let needsReviewCount = 0;
     let reviewHandled = 0;
     let approvedCount = 0;
+    let reviewedCount = 0;  // New: count all reviewed turns
     
     conversations.forEach(conv => {
       const eval = conversationEvaluations[conv.id];
@@ -66,6 +67,11 @@ async function loadConversations() {
           eval.turn_evaluations.forEach(turnEval => {
             const turnFeedback = feedbacks.find(fb => fb.turn_number === turnEval.turn_number);
             const isHandled = turnFeedback?.reviewed || false;
+            
+            // Count reviewed turns (any turn with feedback)
+            if (isHandled) {
+              reviewedCount++;
+            }
             
             if (turnEval.evaluation?.priority === 'critical') {
               criticalCount++;
@@ -84,7 +90,7 @@ async function loadConversations() {
     });
     
     // Update summary banner
-    updateSummaryBanner(criticalCount, criticalHandled, needsReviewCount, reviewHandled, approvedCount, conversations.length);
+    updateSummaryBanner(criticalCount, criticalHandled, needsReviewCount, reviewHandled, approvedCount, reviewedCount, conversations.length);
     
     // Apply filters
     let filteredConversations = conversations;
@@ -116,6 +122,12 @@ async function loadConversations() {
             return eval.turn_evaluations.some(turnEval => 
               turnEval.evaluation && !turnEval.evaluation.needs_review && turnEval.evaluation.overall_score >= 7
             );
+          case 'reviewed':
+            // Show conversations with reviewed turns
+            return eval.turn_evaluations.some(turnEval => {
+              const turnFeedback = feedbacks.find(fb => fb.turn_number === turnEval.turn_number);
+              return turnFeedback?.reviewed;
+            });
           case 'all':
             return true;
           default:
@@ -140,7 +152,7 @@ async function loadConversations() {
 }
 
 // Update summary banner
-function updateSummaryBanner(critical, criticalHandled, needsReview, reviewHandled, approved, total) {
+function updateSummaryBanner(critical, criticalHandled, needsReview, reviewHandled, approved, reviewed, total) {
   const criticalUnhandled = critical - criticalHandled;
   const reviewUnhandled = needsReview - reviewHandled;
   
@@ -156,6 +168,10 @@ function updateSummaryBanner(critical, criticalHandled, needsReview, reviewHandl
         <div class="stat-number">${reviewUnhandled}</div>
         <div class="stat-label">⚠️ Da Revisionare</div>
         <div class="stat-sublabel">${reviewHandled} gestiti / ${needsReview} totali</div>
+      </div>
+      <div class="stat-card reviewed ${activeStatFilter === 'reviewed' ? 'active' : ''}" onclick="filterByStats('reviewed')" style="cursor: pointer;">
+        <div class="stat-number">${reviewed}</div>
+        <div class="stat-label">📝 Risposte Revisionate</div>
       </div>
       <div class="stat-card success ${activeStatFilter === 'approved' ? 'active' : ''}" onclick="filterByStats('approved')" style="cursor: pointer;">
         <div class="stat-number">${approved}</div>
