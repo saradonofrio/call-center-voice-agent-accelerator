@@ -8,7 +8,7 @@ ensuring GDPR compliance with enterprise-grade accuracy.
 Presidio advantages:
 - ML-based NER (Named Entity Recognition)
 - Better accuracy than regex-only approaches
-- Multilingual support (Italian included)
+- Multilingual support (Italian, English, Spanish, French, German)
 - Microsoft-maintained and enterprise-ready
 - Extensible with custom recognizers
 """
@@ -22,6 +22,15 @@ from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
 
 logger = logging.getLogger(__name__)
+
+# Supported languages and their spaCy models
+SUPPORTED_LANGUAGES = {
+    "it": "it_core_news_lg",      # Italian
+    "en": "en_core_web_lg",       # English
+    "es": "es_core_news_lg",      # Spanish
+    "fr": "fr_core_news_lg",      # French
+    "de": "de_core_news_lg",      # German
+}
 
 
 class PIIAnonymizerPresidio:
@@ -56,25 +65,41 @@ class PIIAnonymizerPresidio:
         "IP_ADDRESS": "IP"
     }
     
-    def __init__(self, reversible: bool = True, language: str = "it"):
+    def __init__(self, reversible: bool = True, languages: List[str] = None):
         """
-        Initialize the Presidio-based PII anonymizer.
+        Initialize the Presidio-based PII anonymizer with multilingual support.
         
         Args:
             reversible: If True, maintains mapping for potential de-anonymization
-            language: Language code (default: "it" for Italian)
+            languages: List of language codes to support (default: ["it", "en"])
+                      Supported: it (Italian), en (English), es (Spanish), 
+                                fr (French), de (German)
         """
         self.reversible = reversible
-        self.language = language
+        self.languages = languages or ["it", "en"]  # Default: Italian + English
         self.session_maps: Dict[str, Dict[str, str]] = {}
         self.counters: Dict[str, Dict[str, int]] = {}
         
-        # Initialize Presidio Analyzer with Italian NLP model
+        # Validate requested languages
+        invalid_langs = [lang for lang in self.languages if lang not in SUPPORTED_LANGUAGES]
+        if invalid_langs:
+            logger.warning(f"Unsupported languages ignored: {invalid_langs}")
+            self.languages = [lang for lang in self.languages if lang in SUPPORTED_LANGUAGES]
+        
+        # Initialize Presidio Analyzer with multilingual NLP models
         try:
-            # Configure NLP engine for Italian
+            # Configure NLP engine with multiple language models
+            models_config = []
+            for lang_code in self.languages:
+                model_name = SUPPORTED_LANGUAGES[lang_code]
+                models_config.append({
+                    "lang_code": lang_code, 
+                    "model_name": model_name
+                })
+            
             nlp_configuration = {
                 "nlp_engine_name": "spacy",
-                "models": [{"lang_code": "it", "model_name": "it_core_news_lg"}],
+                "models": models_config,
             }
             
             provider = NlpEngineProvider(nlp_configuration=nlp_configuration)
@@ -100,33 +125,65 @@ class PIIAnonymizerPresidio:
                 name="Italian Phone Recognizer"
             )
             
-            # Create analyzer with Italian support and custom recognizers
+            # Create analyzer with multilingual support and custom recognizers
             self.analyzer = AnalyzerEngine(
                 nlp_engine=nlp_engine,
-                supported_languages=["it"]
+                supported_languages=self.languages
             )
             
-            # Add custom Italian phone recognizer
-            self.analyzer.registry.add_recognizer(italian_phone_recognizer)
+            # Add custom Italian phone recognizer if Italian is supported
+            if "it" in self.languages:
+                self.analyzer.registry.add_recognizer(italian_phone_recognizer)
             
             # Create anonymizer
             self.anonymizer = AnonymizerEngine()
             
-            logger.info("Presidio PII Anonymizer initialized successfully with Italian support")
+            logger.info(f"Presidio PII Anonymizer initialized with languages: {', '.join(self.languages)}")
             
         except Exception as e:
             logger.error(f"Error initializing Presidio: {e}")
             logger.warning("Falling back to basic functionality")
             raise
     
-    def anonymize_text(self, text: str, session_id: str, score_threshold: float = 0.6) -> Dict:
+    def _detect_language(self, text: str) -> str:
         """
-        Anonymize PII in text using Presidio.
+        Detect the language of the text using simple heuristics.
+        
+        Args:
+            text: Text to analyze
+            
+        Returns:
+            Language code (default to first supported language if uncertain)
+        """
+        # Simple heuristic: try analyzing with each language and pick best match
+        # For production, consider using langdetect or fasttext for better accuracy
+        
+        # Italian indicators
+        italian_words = ["sono", "essere", "avere", "fare", "dire", "buongiorno", "grazie", "prego"]
+        # English indicators  
+        english_words = ["hello", "thank", "please", "have", "make", "would", "could", "should"]
+        
+        text_lower = text.lower()
+        italian_score = sum(1 for word in italian_words if word in text_lower)
+        english_score = sum(1 for word in english_words if word in text_lower)
+        
+        if italian_score > english_score and "it" in self.languages:
+            return "it"
+        elif english_score > 0 and "en" in self.languages:
+            return "en"
+        
+        # Default to first supported language
+        return self.languages[0]
+    
+    def anonymize_text(self, text: str, session_id: str, score_threshold: float = 0.6, language: str = None) -> Dict:
+        """
+        Anonymize PII in text using Presidio with automatic or specified language detection.
         
         Args:
             text: Text to anonymize
             session_id: Session identifier for maintaining consistent replacements
             score_threshold: Minimum confidence score for entity detection (0.0-1.0)
+            language: Language code (if None, auto-detect from text)
             
         Returns:
             Dictionary with:
@@ -134,6 +191,7 @@ class PIIAnonymizerPresidio:
             - pii_found: List of PII types detected
             - anonymization_map: Mapping of tokens to original values (if reversible)
             - entities: List of detected entities with scores
+            - language: Detected or specified language
         """
         if not text:
             return {
@@ -149,12 +207,21 @@ class PIIAnonymizerPresidio:
         if session_id not in self.session_maps:
             self.session_maps[session_id] = {}
         
+        # Auto-detect language if not specified
+        if language is None:
+            language = self._detect_language(text)
+        
+        # Validate language is supported
+        if language not in self.languages:
+            logger.warning(f"Language '{language}' not supported, using default: {self.languages[0]}")
+            language = self.languages[0]
+        
         try:
-            # Analyze text for PII entities
+            # Analyze text for PII entities with specified language
             # Enable all entity types, including medical
             results = self.analyzer.analyze(
                 text=text,
-                language=self.language,
+                language=language,
                 score_threshold=score_threshold,
                 return_decision_process=False
             )
@@ -205,7 +272,8 @@ class PIIAnonymizerPresidio:
             result_dict = {
                 "anonymized_text": anonymized_text,
                 "pii_found": list(set([p.lower() for p in pii_found])),  # Remove duplicates
-                "entities": entities_info
+                "entities": entities_info,
+                "language": language  # Include detected/used language
             }
             
             if self.reversible:
