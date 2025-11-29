@@ -784,6 +784,7 @@ async function loadEvaluation(conversationId) {
     if (response.ok) {
       const evaluation = await response.json();
       conversationEvaluations[conversationId] = evaluation;
+<<<<<<< HEAD
     } else if (response.status === 404) {
       // Evaluation not yet created for this conversation - this is normal
       // Silently continue without logging
@@ -791,6 +792,11 @@ async function loadEvaluation(conversationId) {
     }
   } catch (error) {
     // Network error or other issue - silently continue
+=======
+    }
+  } catch (error) {
+    // Evaluation not found or error - silently continue
+>>>>>>> 4152a758942a6fcbc7e1c9d22b4c9817b52223ad
   }
 }
 
