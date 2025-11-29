@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from azure.storage.blob.aio import BlobServiceClient, ContainerClient
 from azure.storage.blob import ContentSettings
-from app.pii_anonymizer import PIIAnonymizer
+from app.pii_anonymizer_presidio import PIIAnonymizerPresidio
 from app.encryption_utils import get_encryption_utils
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,8 @@ class ConversationLogger:
         """
         self.storage_connection_string = storage_connection_string
         self.blob_service_client = None
-        self.pii_anonymizer = PIIAnonymizer(reversible=True)
+        # Use Microsoft Presidio for enterprise-grade PII detection
+        self.pii_anonymizer = PIIAnonymizerPresidio(reversible=True, language="it")
         self.encryption_utils = get_encryption_utils()
         
         # Active conversations (session_id -> conversation data)
@@ -165,11 +166,11 @@ class ConversationLogger:
         
         conversation = self.active_conversations[session_id]
         
-        # Anonymize user message
-        user_anonymized = self.pii_anonymizer.anonymize_text(user_message, session_id)
+        # Anonymize user message (Presidio with threshold 0.6 to reduce false positives)
+        user_anonymized = self.pii_anonymizer.anonymize_text(user_message, session_id, score_threshold=0.6)
         
         # Anonymize bot response (in case it echoed PII)
-        bot_anonymized = self.pii_anonymizer.anonymize_text(bot_response, session_id)
+        bot_anonymized = self.pii_anonymizer.anonymize_text(bot_response, session_id, score_threshold=0.6)
         
         # Create turn data
         turn = {

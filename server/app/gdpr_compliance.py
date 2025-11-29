@@ -71,17 +71,17 @@ class GDPRCompliance:
             Dictionary with conversation data (anonymized) or None if not found
         """
         try:
-            from app.pii_anonymizer import PIIAnonymizer
+            from app.pii_anonymizer_presidio import PIIAnonymizerPresidio
             
             conversations_container = self.blob_service_client.get_container_client("conversations")
             
             # Determine search criteria
             if session_id:
-                session_hash = PIIAnonymizer.hash_session_id(session_id)
+                session_hash = PIIAnonymizerPresidio.hash_session_id(session_id)
                 search_field = "session_id_hash"
                 search_value = session_hash
             elif phone_number:
-                phone_hash = PIIAnonymizer.hash_phone_number(phone_number)
+                phone_hash = PIIAnonymizerPresidio.hash_phone_number(phone_number)
                 search_field = "phone_number_hash"
                 search_value = phone_hash
             else:
@@ -144,15 +144,15 @@ class GDPRCompliance:
             Dictionary with deletion summary
         """
         try:
-            from app.pii_anonymizer import PIIAnonymizer
+            from app.pii_anonymizer_presidio import PIIAnonymizerPresidio
             
             # Determine search criteria
             if session_id:
-                session_hash = PIIAnonymizer.hash_session_id(session_id)
+                session_hash = PIIAnonymizerPresidio.hash_session_id(session_id)
                 search_field = "session_id_hash"
                 search_value = session_hash
             elif phone_number:
-                phone_hash = PIIAnonymizer.hash_phone_number(phone_number)
+                phone_hash = PIIAnonymizerPresidio.hash_phone_number(phone_number)
                 search_field = "phone_number_hash"
                 search_value = phone_hash
             else:

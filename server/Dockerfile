@@ -33,6 +33,9 @@ COPY pyproject.toml uv.lock /app/
 # Sync the project into a new environment, using the frozen lockfile
 RUN uv sync --frozen --no-dev --no-install-project --no-editable --all-packages
 
+# Download spaCy Italian language model for Presidio
+RUN /app/.venv/bin/python -m spacy download it_core_news_lg
+
 COPY *.py *.md /app/
 COPY app /app/app/
 COPY static /app/static/
