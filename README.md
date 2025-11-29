@@ -348,15 +348,111 @@ Please follow the instructions in [the instructions in `service`](./service/READ
 
 Please refer to [Transparency Note](https://learn.microsoft.com/azure/ai-foundry/responsible-ai/speech-service/voice-live/transparency-note) for responsible AI transparency details of the voice live api.
 
+### Backup e Ripristino degli Ambienti
+
+**Farmacia BOT** include un sistema completo di backup e ripristino per proteggere i dati e garantire la continuità operativa.
+
+#### Strategia di Backup Integrata
+
+L'infrastruttura include protezione automatica dei dati:
+
+- **Soft Delete (30 giorni)**: Recupero di blob e container eliminati accidentalmente
+- **Versioning**: Cronologia completa delle modifiche ai blob
+- **Point-in-Time Restore (29 giorni)**: Ripristino dell'intero storage a un momento specifico
+
+#### Script di Backup Disponibili
+
+Il repository include script pronti all'uso nella directory `scripts/`:
+
+1. **Backup Completo dell'Ambiente**
+   ```bash
+   ./scripts/backup-full-environment.sh <environment-name>
+   ```
+   Esegue un backup completo di:
+   - Configurazione dell'ambiente (variabili, risorse Azure)
+   - Tutti i dati dello Storage Account (conversazioni, feedback, valutazioni)
+   - Configurazione Azure AI Search (definizioni indici)
+   - Metadata di tutti i servizi Azure (Key Vault, OpenAI, Container App)
+
+2. **Backup Storage Account**
+   ```bash
+   # Backup locale
+   ./scripts/backup-storage.sh <environment-name> local
+   
+   # Backup su Azure (cross-region per disaster recovery)
+   ./scripts/backup-storage.sh <environment-name> azure
+   ```
+
+3. **Backup Azure AI Search**
+   ```bash
+   ./scripts/backup-search-index.sh <environment-name>
+   ```
+   Salva definizioni di indici, data sources e indexer.
+
+#### Ripristino dell'Ambiente
+
+In caso di problemi o perdita di dati:
+
+1. **Ripristino Infrastruttura**
+   ```bash
+   # Ricrea tutti i servizi Azure
+   azd provision --environment <environment-name>
+   ```
+
+2. **Ripristino Dati Storage**
+   ```bash
+   ./scripts/restore-storage.sh <environment-name> <backup-path>
+   ```
+   Esempio:
+   ```bash
+   ./scripts/restore-storage.sh farmacia-agent ./backups/storage/20251129_153000
+   ```
+
+3. **Re-indexing Azure AI Search**
+   - Accedi al [portale Azure](https://portal.azure.com)
+   - Vai al servizio Azure AI Search
+   - Nella sezione **Indexers**, seleziona l'indexer e clicca **Run**
+   - Oppure usa l'API REST per ricaricare l'indice dai dati ripristinati
+
+4. **Verifica**
+   - Testa l'applicazione web
+   - Verifica l'admin dashboard
+   - Controlla che le conversazioni salvate siano accessibili
+
+#### Best Practices per il Backup
+
+- **Frequenza consigliata**:
+  - Backup giornaliero automatico per l'ambiente di produzione
+  - Backup settimanale per l'ambiente di test
+  - Backup manuale prima di modifiche importanti all'infrastruttura
+
+- **Conservazione**:
+  - Backup giornalieri: 30 giorni
+  - Backup settimanali: 3 mesi
+  - Backup pre-deployment: 6 mesi
+
+- **Test di ripristino**:
+  - Esegui test di ripristino mensili nell'ambiente di test
+  - Documenta il tempo di ripristino (RTO) e il punto di ripristino (RPO)
+
+- **Disaster Recovery**:
+  - Usa backup cross-region con `./scripts/backup-storage.sh <env> azure`
+  - Mantieni copie locali dei backup critici
+  - Documenta la procedura di ripristino completo
+
+> 📁 Tutti i backup vengono salvati nella directory `./backups/` con timestamp. Ogni backup include un file `MANIFEST.txt` con le istruzioni dettagliate di ripristino.
+
 ### Resource Clean-up
 
 When you no longer need the resources created in this article, run the following command to power down the app:
 
 ```bash
-azd down
+azd down --environment <environment-name>
 ```
 
-If you want to redeploy to a different region, delete the `.azure` directory before running `azd up` again. In a more advanced scenario, you could selectively edit files within the `.azure` directory to change the region.
+If you want to redeploy to a different region, delete the `.azure/<environment-name>` directory before running `azd up` again. In a more advanced scenario, you could selectively edit files within the `.azure` directory to change the region.
+
+> ⚠️ **Attenzione**: `azd down` elimina tutte le risorse Azure incluso lo Storage Account con tutti i dati. Esegui sempre un backup prima di eliminare un ambiente!
 
 <br/>
 

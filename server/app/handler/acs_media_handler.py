@@ -20,13 +20,48 @@ from websockets.typing import Data
 logger = logging.getLogger(__name__)
 
 
-def session_config(azure_search_config=None):
+async def load_instructions_from_storage(blob_service_client):
+    """
+    Load AI system instructions from Azure Blob Storage.
+    
+    Args:
+        blob_service_client: Azure Blob Service Client
+        
+    Returns:
+        str: Instructions text from blob storage, or default fallback
+    """
+    try:
+        container_client = blob_service_client.get_container_client("system-instructions")
+        blob_client = container_client.get_blob_client("ai_system_intructions.txt")
+        
+        blob_data = await blob_client.download_blob()
+        instructions_bytes = await blob_data.readall()
+        instructions = instructions_bytes.decode('utf-8')
+        
+        logger.info("Successfully loaded instructions from blob storage")
+        return instructions
+        
+    except Exception as e:
+        logger.warning(f"Could not load instructions from blob storage: {e}, using fallback")
+        
+        # Fallback instructions
+        today = datetime.now().strftime("%d %B %Y")
+        return (
+            f"Sei un assistente virtuale farmacista che risponde in modo naturale e con frasi brevi. "
+            f"Parla in italiano, a meno che le domande non arrivino in altra lingua. "
+            f"Ricordati che oggi è il giorno {today}, usa questa data come riferimento temporale per rispondere alle domande. "
+            f"Parla solo di argomenti inerenti la farmacia, se la ricerca non trova risultati rilevanti, rispondi 'Ti consiglio di contattare la farmacia.' "
+            f"Inizia la conversazione chiedendo Come posso esserti utile?"
+        )
+
+
+async def session_config(azure_search_config=None, blob_service_client=None, custom_instructions=None):
     """
     Returns the default session configuration for Voice Live API.
     
     This configuration defines:
     - Conversation modalities (text and audio)
-    - AI personality and instructions in Italian
+    - AI personality and instructions in Italian (loaded from blob storage)
     - Voice activity detection (VAD) settings
     - Noise reduction and echo cancellation
     - Voice selection (Italian neural voice)
@@ -35,24 +70,32 @@ def session_config(azure_search_config=None):
     Args:
         azure_search_config (dict, optional): Azure AI Search configuration for document grounding.
             If provided, adds function calling capability to search the pharmacy database.
+        blob_service_client (optional): Azure Blob Service Client for loading instructions
+        custom_instructions (str, optional): Custom instructions to override stored ones
     
     Returns:
         dict: Session configuration object to be sent to Voice Live API
     """
-    # Get current date for temporal context in responses
-    today = datetime.now().strftime("%d %B %Y")
-    
     logger.info("Building session config with azure_search_config: %s", 
                 "enabled" if azure_search_config else "disabled")
     
-    # Base system instructions for the AI assistant (in Italian)
-    base_instructions = (
-        f"Sei un assistente virtuale farmacista che risponde in modo naturale e con frasi brevi. "
-        f"Parla in italiano, a meno che le domande non arrivino in altra lingua. "
-        f"Ricordati che oggi è il giorno {today}, usa questa data come riferimento temporale per rispondere alle domande. "
-        f"Parla solo di argomenti inerenti la farmacia, se la ricerca non trova risultati rilevanti, rispondi 'Ti consiglio di contattare la farmacia.'"
-        f"Inizia la conversazione chiedendo Come posso esserti utile?"
-    )
+    # Load base system instructions from blob storage or use custom ones
+    if custom_instructions:
+        base_instructions = custom_instructions
+        logger.info("Using custom instructions provided by user")
+    elif blob_service_client:
+        base_instructions = await load_instructions_from_storage(blob_service_client)
+    else:
+        # Fallback if no blob service client available
+        today = datetime.now().strftime("%d %B %Y")
+        base_instructions = (
+            f"Sei un assistente virtuale farmacista che risponde in modo naturale e con frasi brevi. "
+            f"Parla in italiano, a meno che le domande non arrivino in altra lingua. "
+            f"Ricordati che oggi è il giorno {today}, usa questa data come riferimento temporale per rispondere alle domande. "
+            f"Parla solo di argomenti inerenti la farmacia, se la ricerca non trova risultati rilevanti, rispondi 'Ti consiglio di contattare la farmacia.' "
+            f"Inizia la conversazione chiedendo Come posso esserti utile?"
+        )
+        logger.warning("No blob service client provided, using fallback instructions")
     
     # Add grounding instructions if Azure Search is enabled
     if azure_search_config:
@@ -180,12 +223,16 @@ class ACSMediaHandler:
                 - AZURE_SEARCH_ENDPOINT: Azure AI Search endpoint (optional)
                 - AZURE_SEARCH_INDEX: Search index name (optional)
                 - AZURE_SEARCH_API_KEY: Search API key (optional)
+                - BLOB_SERVICE_CLIENT: Azure Blob Service Client for loading instructions (optional)
         """
         # Voice Live API configuration
         self.endpoint = config["AZURE_VOICE_LIVE_ENDPOINT"]
         self.model = config["VOICE_LIVE_MODEL"]
         self.client_id = config.get("AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID")
         self.api_key = config.get("VOICE_LIVE_API_KEY")
+        
+        # Blob service client for loading instructions
+        self.blob_service_client = config.get("BLOB_SERVICE_CLIENT")
         
         # Azure AI Search configuration - only enable if endpoint and index are provided
         self.azure_search_config = None
@@ -309,14 +356,12 @@ class ACSMediaHandler:
         self.ws = await ws_connect(url, additional_headers=headers)
 
         # Send session configuration with Azure Search if enabled
-        # Use custom instructions if available, otherwise use defaults from session_config
-        if self.custom_instructions:
-            logger.info("Using custom instructions provided by user")
-            session_cfg = session_config(self.azure_search_config)
-            session_cfg["session"]["instructions"] = self.custom_instructions
-        else:
-            logger.info("Using default instructions")
-            session_cfg = session_config(self.azure_search_config)
+        # Load instructions from blob storage or use custom ones
+        session_cfg = await session_config(
+            azure_search_config=self.azure_search_config,
+            blob_service_client=self.blob_service_client,
+            custom_instructions=self.custom_instructions
+        )
         
         logger.info("Session config type: %s", type(session_cfg))
         logger.info("Session config keys: %s", list(session_cfg.keys()) if isinstance(session_cfg, dict) else "NOT A DICT")

@@ -51,20 +51,29 @@ async function loadConversations() {
     
     // Calculate summary statistics
     let criticalCount = 0;
+    let criticalHandled = 0;
     let needsReviewCount = 0;
+    let reviewHandled = 0;
     let approvedCount = 0;
     
     conversations.forEach(conv => {
       const eval = conversationEvaluations[conv.id];
+      const feedbacks = conversationFeedbacks[conv.id] || [];
+      
       if (eval) {
         // Count critical turns (not just critical conversations)
         if (eval.turn_evaluations) {
           eval.turn_evaluations.forEach(turnEval => {
+            const turnFeedback = feedbacks.find(fb => fb.turn_number === turnEval.turn_number);
+            const isHandled = turnFeedback?.reviewed || false;
+            
             if (turnEval.evaluation?.priority === 'critical') {
               criticalCount++;
+              if (isHandled) criticalHandled++;
             }
             if (turnEval.evaluation?.needs_review) {
               needsReviewCount++;
+              if (isHandled) reviewHandled++;
             }
             if (turnEval.evaluation && !turnEval.evaluation.needs_review && turnEval.evaluation.overall_score >= 7) {
               approvedCount++;
@@ -75,7 +84,7 @@ async function loadConversations() {
     });
     
     // Update summary banner
-    updateSummaryBanner(criticalCount, needsReviewCount, approvedCount, conversations.length);
+    updateSummaryBanner(criticalCount, criticalHandled, needsReviewCount, reviewHandled, approvedCount, conversations.length);
     
     // Apply filters
     let filteredConversations = conversations;
@@ -84,19 +93,24 @@ async function loadConversations() {
     if (activeStatFilter) {
       filteredConversations = filteredConversations.filter(conv => {
         const eval = conversationEvaluations[conv.id];
+        const feedbacks = conversationFeedbacks[conv.id] || [];
         if (!eval || !eval.turn_evaluations) return false;
         
         switch(activeStatFilter) {
           case 'critical':
-            // Check if conversation has any critical turns
-            return eval.turn_evaluations.some(turnEval => 
-              turnEval.evaluation?.priority === 'critical'
-            );
+            // Show conversations with UNHANDLED critical turns
+            return eval.turn_evaluations.some(turnEval => {
+              if (turnEval.evaluation?.priority !== 'critical') return false;
+              const turnFeedback = feedbacks.find(fb => fb.turn_number === turnEval.turn_number);
+              return !turnFeedback?.reviewed; // Only show if NOT reviewed
+            });
           case 'needs_review':
-            // Check if conversation has any turns that need review
-            return eval.turn_evaluations.some(turnEval => 
-              turnEval.evaluation?.needs_review
-            );
+            // Show conversations with UNHANDLED turns that need review
+            return eval.turn_evaluations.some(turnEval => {
+              if (!turnEval.evaluation?.needs_review) return false;
+              const turnFeedback = feedbacks.find(fb => fb.turn_number === turnEval.turn_number);
+              return !turnFeedback?.reviewed; // Only show if NOT reviewed
+            });
           case 'approved':
             // Check if conversation has any approved turns
             return eval.turn_evaluations.some(turnEval => 
@@ -121,22 +135,27 @@ async function loadConversations() {
     updatePagination();
   } catch (error) {
     console.error('Error loading conversations:', error);
-    alert('Error loading conversations');
+    alert('Errore caricamento conversazioni');
   }
 }
 
 // Update summary banner
-function updateSummaryBanner(critical, needsReview, approved, total) {
+function updateSummaryBanner(critical, criticalHandled, needsReview, reviewHandled, approved, total) {
+  const criticalUnhandled = critical - criticalHandled;
+  const reviewUnhandled = needsReview - reviewHandled;
+  
   const banner = document.getElementById('summary-banner');
   banner.innerHTML = `
     <div class="summary-stats">
       <div class="stat-card critical ${activeStatFilter === 'critical' ? 'active' : ''}" onclick="filterByStats('critical')" style="cursor: pointer;">
-        <div class="stat-number">${critical}</div>
-        <div class="stat-label">🔴 Critici</div>
+        <div class="stat-number">${criticalUnhandled}</div>
+        <div class="stat-label">🔴 Critici da Gestire</div>
+        <div class="stat-sublabel">${criticalHandled} gestiti / ${critical} totali</div>
       </div>
       <div class="stat-card warning ${activeStatFilter === 'needs_review' ? 'active' : ''}" onclick="filterByStats('needs_review')" style="cursor: pointer;">
-        <div class="stat-number">${needsReview}</div>
+        <div class="stat-number">${reviewUnhandled}</div>
         <div class="stat-label">⚠️ Da Revisionare</div>
+        <div class="stat-sublabel">${reviewHandled} gestiti / ${needsReview} totali</div>
       </div>
       <div class="stat-card success ${activeStatFilter === 'approved' ? 'active' : ''}" onclick="filterByStats('approved')" style="cursor: pointer;">
         <div class="stat-number">${approved}</div>
@@ -147,13 +166,15 @@ function updateSummaryBanner(critical, needsReview, approved, total) {
         <div class="stat-label">📊 Conversazioni Totali</div>
       </div>
     </div>
-    ${needsReview > 0 ? `
+    ${criticalUnhandled > 0 || reviewUnhandled > 0 ? `
       <div class="attention-message">
-        👁️ <strong>${needsReview} conversazione${needsReview > 1 ? 'i' : ''} necessita${needsReview === 1 ? '' : 'no'} la tua attenzione</strong> (su un totale di ${total})
+        👁️ <strong>${criticalUnhandled + reviewUnhandled} dialoghi richiedono la tua attenzione</strong>
+        ${criticalUnhandled > 0 ? `<br>🔴 ${criticalUnhandled} critici non gestiti` : ''}
+        ${reviewUnhandled > 0 ? `<br>⚠️ ${reviewUnhandled} da revisionare non gestiti` : ''}
       </div>
     ` : `
       <div class="attention-message success">
-        🎉 Tutte le conversazioni sono a posto! Nessuna revisione immediata necessaria.
+        🎉 Ottimo lavoro! Tutti i dialoghi critici e da revisionare sono stati gestiti!
       </div>
     `}
   `;
@@ -562,32 +583,158 @@ async function loadAnalytics() {
     const container = document.getElementById('analytics-content');
     container.innerHTML = `
       <div class="metric-card">
-        <h3>Total Conversations</h3>
+        <h3>Conversazioni Totali</h3>
         <p class="metric-value">${data.conversations?.total_conversations || 0}</p>
       </div>
       <div class="metric-card">
-        <h3>Avg Turns/Conv</h3>
+        <h3>Media Turni/Conv</h3>
         <p class="metric-value">${data.conversations?.avg_turns_per_conversation || 0}</p>
       </div>
       <div class="metric-card">
-        <h3>Total Feedback</h3>
+        <h3>Feedback Totali</h3>
         <p class="metric-value">${data.feedback?.total_feedback || 0}</p>
       </div>
       <div class="metric-card">
-        <h3>Avg Rating</h3>
+        <h3>Valutazione Media</h3>
         <p class="metric-value">${data.feedback?.avg_rating || 0} ⭐</p>
       </div>
       <div class="metric-card">
-        <h3>Approved Responses</h3>
+        <h3>Risposte Approvate</h3>
         <p class="metric-value">${data.approved_responses?.total_approved || 0}</p>
       </div>
       <div class="metric-card">
-        <h3>Search Usage</h3>
+        <h3>Utilizzo Ricerca</h3>
         <p class="metric-value">${data.conversations?.search_usage?.conversations_with_search || 0}</p>
       </div>
     `;
   } catch (error) {
     console.error('Error loading analytics:', error);
+  }
+}
+
+// Load approved responses
+async function loadApprovedResponses() {
+  try {
+    showLoading('approved-content');
+    
+    const response = await fetch('/admin/api/approved-responses');
+    if (!response.ok) throw new Error('Errore nel caricamento delle risposte approvate');
+    
+    const data = await response.json();
+    const approvedResponses = data.approved_responses || [];
+    
+    const approvedContent = document.getElementById('approved-content');
+    
+    if (approvedResponses.length === 0) {
+      approvedContent.innerHTML = '<div class="empty-state"><p>📚 Nessuna risposta approvata ancora.<br>Usa il pulsante <strong>⭐ Approva come Esempio</strong> per salvare le risposte migliori.</p></div>';
+      return;
+    }
+    
+    // Fetch conversation details for each approved response
+    const conversationsCache = {};
+    
+    for (const approved of approvedResponses) {
+      if (!conversationsCache[approved.conversation_id]) {
+        try {
+          const convResp = await fetch(`/admin/api/conversations?conversation_id=${approved.conversation_id}`);
+          if (convResp.ok) {
+            const convData = await convResp.json();
+            if (convData.conversations && convData.conversations.length > 0) {
+              conversationsCache[approved.conversation_id] = convData.conversations[0];
+            }
+          }
+        } catch (e) {
+          console.warn(`Could not load conversation ${approved.conversation_id}:`, e);
+        }
+      }
+    }
+    
+    let html = '<div class="approved-responses-grid">';
+    
+    for (const approved of approvedResponses) {
+      const conversation = conversationsCache[approved.conversation_id];
+      const turn = conversation?.turns?.[approved.turn_number];
+      
+      const userQuery = turn?.user_message || 'N/A';
+      const originalResponse = turn?.bot_response || 'N/A';
+      const approvedResponse = approved.corrected_response || originalResponse;
+      const rating = approved.rating || 5;
+      const tags = approved.tags || [];
+      const comment = approved.admin_comment || '';
+      const timestamp = new Date(approved.timestamp).toLocaleString('it-IT');
+      const adminUser = approved.admin_user || 'Admin';
+      
+      html += `
+        <div class="approved-card">
+          <div class="approved-header">
+            <span class="approved-badge">⭐ Risposta Approvata</span>
+            <span class="approved-date">${timestamp}</span>
+          </div>
+          
+          <div class="approved-body">
+            <div class="approved-section">
+              <label>💬 Domanda Cliente:</label>
+              <div class="approved-text">${escapeHtml(userQuery)}</div>
+            </div>
+            
+            <div class="approved-section">
+              <label>✅ Risposta Approvata:</label>
+              <div class="approved-text approved-highlight">${escapeHtml(approvedResponse)}</div>
+            </div>
+            
+            ${comment ? `
+            <div class="approved-section">
+              <label>📝 Note Admin:</label>
+              <div class="approved-text">${escapeHtml(comment)}</div>
+            </div>
+            ` : ''}
+            
+            <div class="approved-footer">
+              <div class="approved-meta">
+                <span class="approved-rating">${'⭐'.repeat(rating)}</span>
+                ${tags.length > 0 ? `<span class="approved-tags">${tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}</span>` : ''}
+              </div>
+              <div class="approved-link">
+                <a href="#" onclick="viewApprovedConversation('${approved.conversation_id}', ${approved.turn_number}); return false;">
+                  🔗 Visualizza Conversazione
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    html += '</div>';
+    approvedContent.innerHTML = html;
+    
+  } catch (error) {
+    console.error('Error loading approved responses:', error);
+    document.getElementById('approved-content').innerHTML = 
+      '<div class="error-state"><p>❌ Errore nel caricamento delle risposte approvate.</p></div>';
+  }
+}
+
+function viewApprovedConversation(conversationId, turnNumber) {
+  // Switch to conversations tab
+  const conversationsTab = document.querySelector('[data-tab="conversations"]');
+  if (conversationsTab) conversationsTab.click();
+  
+  // Filter to show this conversation
+  const searchInput = document.getElementById('search-input');
+  if (searchInput) {
+    searchInput.value = conversationId;
+    loadConversations();
+    
+    // After loading, scroll to the turn
+    setTimeout(() => {
+      const turnElement = document.getElementById(`dialogo-${conversationId}-${turnNumber}`);
+      if (turnElement) {
+        turnElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        turnElement.classList.add('highlight-turn');
+        setTimeout(() => turnElement.classList.remove('highlight-turn'), 3000);
+      }
+    }, 1000);
   }
 }
 
@@ -737,6 +884,20 @@ function filterByStats(filterType) {
   // Reset to page 1 and reload
   currentPage = 1;
   loadConversations();
+}
+
+// Helper functions
+function showLoading(elementId) {
+  const element = document.getElementById(elementId);
+  if (element) {
+    element.innerHTML = '<div style="text-align: center; padding: 40px;"><div class="spinner"></div><p>Caricamento...</p></div>';
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 // Initial load
