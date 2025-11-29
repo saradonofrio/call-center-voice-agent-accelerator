@@ -424,50 +424,56 @@ h1 {
 }
 
 .reviewed-badge {
-  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  background: linear-gradient(135deg, #00c853 0%, #00e676 100%);
   color: white;
-  padding: 6px 16px;
-  border-radius: 20px;
-  font-size: 0.9rem;
-  font-weight: 700;
+  padding: 8px 20px;
+  border-radius: 24px;
+  font-size: 1rem;
+  font-weight: 900;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  box-shadow: 0 3px 8px rgba(40, 167, 69, 0.4);
-  animation: fadeInBadge 0.3s ease-in;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  gap: 8px;
+  box-shadow: 0 6px 16px rgba(0, 200, 83, 0.6), 0 0 0 3px rgba(255, 255, 255, 0.8);
+  animation: fadeInBadge 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  border: 3px solid white;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 @keyframes fadeInBadge {
-  from {
+  0% {
     opacity: 0;
-    transform: scale(0.8);
+    transform: scale(0.5) translateY(-10px);
   }
-  to {
+  60% {
+    transform: scale(1.1);
+  }
+  100% {
     opacity: 1;
-    transform: scale(1);
+    transform: scale(1) translateY(0);
   }
 }
 
 .dialogo.reviewed {
-  border-left: 5px solid #28a745;
-  background: linear-gradient(to right, #e8f5e9 0%, #f1f8f4 100%);
-  opacity: 0.85;
+  border-left: 8px solid #00c853;
+  background: linear-gradient(to right, #e0f7fa 0%, #e8f5e9 50%, #f1f8f4 100%);
+  opacity: 0.92;
   position: relative;
+  box-shadow: 0 2px 8px rgba(0, 200, 83, 0.15);
 }
 
 .dialogo.reviewed::before {
   content: '✓';
   position: absolute;
-  top: 10px;
-  left: -15px;
-  font-size: 1.5rem;
-  color: #28a745;
-  font-weight: bold;
+  top: 15px;
+  left: -20px;
+  font-size: 1.8rem;
+  color: #00c853;
+  font-weight: 900;
   background: white;
   border-radius: 50%;
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -856,19 +862,52 @@ textarea {
 }
 
 .attention-message {
-  background: rgba(255, 255, 255, 0.95);
-  color: #333;
-  padding: 12px 20px;
-  border-radius: 8px;
+  background: linear-gradient(135deg, #fff3e0 0%, #ffebee 100%);
+  color: #d32f2f;
+  padding: 16px 24px;
+  border-radius: 12px;
   text-align: center;
-  font-size: 1rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  font-size: 1.1rem;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(211, 47, 47, 0.2);
+  border: 3px solid #ff9800;
+  animation: pulseAttention 2s ease-in-out infinite;
+}
+
+@keyframes pulseAttention {
+  0%, 100% {
+    box-shadow: 0 4px 12px rgba(211, 47, 47, 0.2);
+  }
+  50% {
+    box-shadow: 0 6px 20px rgba(211, 47, 47, 0.4);
+  }
 }
 
 .attention-message.success {
-  background: rgba(76, 175, 80, 0.15);
-  color: #2e7d32;
-  border: 2px solid rgba(76, 175, 80, 0.3);
+  background: linear-gradient(135deg, #00e676 0%, #00c853 100%);
+  color: white;
+  border: 3px solid white;
+  font-size: 1.2rem;
+  font-weight: 800;
+  padding: 20px 28px;
+  box-shadow: 0 6px 20px rgba(0, 200, 83, 0.4);
+  animation: celebrate 0.6s ease-out;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+@keyframes celebrate {
+  0% {
+    transform: scale(0.8) translateY(20px);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
 }
 
 /* Inline Feedback Form */
